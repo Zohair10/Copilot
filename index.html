@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Copilot Analytics Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>GitHub Copilot Analytics Dashboard</h1>
+        <p class="subtitle">Visualize usage, engagement, and feature adoption for Copilot across editors and languages.</p>
+        
+        <div class="button-container">          
+            <button onclick="fetchData('organization')" id="btn-organization"> Organization Data</button>
+            <button onclick="fetchData('languages')" id="btn-languages"> Languages</button>
+            <button onclick="fetchData('editors')" id="btn-editors"> Editors</button>
+            <button onclick="fetchData('billing')" id="btn-billing"> Billing</button>
+        </div>        <!-- Filter Controls -->
+        <div class="filter-container" id="filterContainer">
+            <div class="filter-title" id="filterTitle">Filter Options</div>
+            <div class="multi-select" id="filterOptions"></div>
+            <div class="filter-buttons">
+                <button onclick="applyFilters()" class="filter-btn">Apply Filters</button>
+                <button onclick="clearFilters()" class="clear-btn">Clear All</button>
+            </div>
+        </div >
+          <div class="data-container" id="result">
+            <!-- div class="loading">Select a button above to view data</div -->
+        </div>
+    </div>
+
+    <!-- External JavaScript -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+      // Load Organization Data by default on page load
+      window.onload = function() {
+        fetchData('organization');
+      };
+    </script>
+</body>
+</html>
