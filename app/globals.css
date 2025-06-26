@@ -1,0 +1,23 @@
+/* Retro Terminal Theme - Global Variables */
+:root {
+  --retro-bg: #0a0a0a;
+  --retro-primary: #00ff00;
+  --retro-secondary: #ffff00;
+  --retro-accent: #ff00ff;
+  --retro-orange: #ff8000;
+  --retro-cyan: #00ffff;
+  --retro-white: #ffffff;
+  --retro-dark: #1a1a1a;
+  --retro-border: #333333;
+  --retro-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+  --retro-glow: 0 0 20px rgba(0, 255, 0, 0.5);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--retro-bg);
+  color: var(--retro-primary);
+  font-family: 'Courier New', monospace;
+  overflow-x: hidden;
+}
