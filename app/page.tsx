@@ -1,5 +1,5 @@
-import RetroDashboard from './components/RetroDashboard';
+import ProfessionalDashboard from './components/ProfessionalDashboard';
 
 export default function Home() {
-  return <RetroDashboard />;
+  return <ProfessionalDashboard />;
 }

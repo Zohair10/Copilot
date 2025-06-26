@@ -5,7 +5,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
-import styles from '../styles/retro.module.css';
+import styles from '../styles/professional.module.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
@@ -29,7 +29,7 @@ interface TimePeriod {
   getDates: (data: any[]) => any[];
 }
 
-export default function RetroDashboard() {
+export default function ProfessionalDashboard() {
   const [activeTab, setActiveTab] = useState('organization');
   const [data, setData] = useState<TabData>({});
   const [originalData, setOriginalData] = useState<TabData>({}); // Store unfiltered data for pie charts
@@ -59,6 +59,12 @@ export default function RetroDashboard() {
   const [timePeriodFilter, setTimePeriodFilter] = useState('all-time');
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [searchTerms, setSearchTerms] = useState<{ [key: string]: string }>({
+    organization: '',
+    languages: '',
+    editors: '',
+    billing: ''
+  });
 
   const tabs = [
     { id: 'organization', label: 'Organization', icon: '' },
@@ -69,6 +75,8 @@ export default function RetroDashboard() {
 
   useEffect(() => {
     fetchData(activeTab);
+    // Clear search term when tab changes for better UX
+    setSearchTerms(prev => ({ ...prev, [activeTab]: '' }));
   }, [activeTab]);
 
   // Add useEffect to re-fetch data when time period filter changes
@@ -254,18 +262,32 @@ export default function RetroDashboard() {
     const filteredData = filterDataByTimePeriod(chartData, timePeriodFilter);
     if (filteredData.length === 0) return null;
 
+    // Professional color palette with high contrast and accessibility
     const colors = [
-      '#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8000',
-      '#ff0080', '#80ff00', '#8000ff', '#0080ff', '#ff8080'
+      '#3b82f6', // Blue
+      '#10b981', // Green
+      '#f59e0b', // Amber
+      '#ef4444', // Red
+      '#8b5cf6', // Violet
+      '#06b6d4', // Cyan
+      '#f97316', // Orange
+      '#84cc16', // Lime
+      '#ec4899', // Pink
+      '#6366f1', // Indigo
     ];
 
     const datasets = yKeys.map((key, index) => ({
       label: key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
       data: filteredData.map(item => item[key] || 0),
       borderColor: colors[index % colors.length],
-      backgroundColor: `${colors[index % colors.length]}20`,
+      backgroundColor: `${colors[index % colors.length]}1A`, // 10% opacity
       tension: 0.1,
-      borderWidth: 2,
+      borderWidth: 3,
+      pointBackgroundColor: colors[index % colors.length],
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
     }));
 
     return {
@@ -279,15 +301,21 @@ export default function RetroDashboard() {
 
     const labels = Object.keys(pieData);
     const values = Object.values(pieData) as number[];
-    const colors = ['#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8000', '#ff0080', '#80ff00', '#8000ff'];
+    // Professional color palette with high contrast
+    const colors = [
+      '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+      '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+    ];
 
     return {
       labels,
       datasets: [{
         data: values,
         backgroundColor: colors.slice(0, labels.length),
-        borderColor: colors.slice(0, labels.length),
+        borderColor: '#ffffff',
         borderWidth: 2,
+        hoverBorderWidth: 3,
+        hoverOffset: 4,
       }],
     };
   };
@@ -298,52 +326,91 @@ export default function RetroDashboard() {
     plugins: {
       legend: {
         labels: {
-          color: '#00ff00',
+          color: '#1e293b',
           font: {
-            family: 'Courier New',
-            size: 14
+            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            size: 14,
+            weight: 'normal' as const
           },
-          padding: 20
+          padding: 20,
+          usePointStyle: true,
+          pointStyle: 'circle',
         },
         position: 'top' as const,
         align: 'center' as const
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleColor: '#00ff00',
-        bodyColor: '#ffffff',
-        borderColor: '#333333',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        titleColor: '#1e293b',
+        bodyColor: '#475569',
+        borderColor: '#e2e8f0',
         borderWidth: 1,
-        padding: 10,
+        padding: 12,
+        cornerRadius: 8,
         titleFont: {
-          family: 'Courier New',
-          size: 14
+          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          size: 14,
+          weight: 'bold' as const
         },
         bodyFont: {
-          family: 'Courier New',
-          size: 12
-        }
+          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          size: 13,
+          weight: 'normal' as const
+        },
+        boxPadding: 4,
       }
     },
     scales: {
       x: {
-        grid: { color: '#333333' },
+        grid: { 
+          color: '#f1f5f9',
+          borderColor: '#e2e8f0',
+        },
         ticks: { 
-          color: '#ffffff',
-          font: { family: 'Courier New', size: 12 },
+          color: '#64748b',
+          font: { 
+            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            size: 12,
+            weight: 'normal' as const
+          },
           maxRotation: 45,
-          minRotation: 45,
-          autoSkip: false // Ensures all labels are shown
+          minRotation: 0,
+          padding: 8,
+        },
+        border: {
+          color: '#e2e8f0',
         }
       },
       y: {
-        grid: { color: '#333333' },
+        grid: { 
+          color: '#f1f5f9',
+          borderColor: '#e2e8f0',
+        },
         ticks: { 
-          color: '#ffffff',
-          font: { family: 'Courier New', size: 12 },
-          padding: 10
+          color: '#64748b',
+          font: { 
+            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            size: 12,
+            weight: 'normal' as const
+          },
+          padding: 8,
+        },
+        border: {
+          color: '#e2e8f0',
         },
         beginAtZero: true
+      }
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index' as const,
+    },
+    elements: {
+      line: {
+        tension: 0.2,
+      },
+      point: {
+        hoverRadius: 8,
       }
     }
   };
@@ -417,23 +484,22 @@ export default function RetroDashboard() {
               textAlign: 'center',
               padding: '15px 10px',
               margin: '0',
-              background: 'rgba(0, 255, 0, 0.05)',
-              border: '1px solid var(--retro-border)',
-              borderRadius: '4px',
+              background: 'var(--primary-bg)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)',
               minWidth: '220px',
               maxWidth: '300px',
               minHeight: '145px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
-              boxShadow: '0 0 10px rgba(0, 255, 0, 0.15)'
+              boxShadow: 'var(--shadow-md)'
             }}>
               <div style={{ 
                 fontSize: '34px', 
                 fontWeight: 'bold',
-                color: 'var(--retro-primary)',
-                marginBottom: '8px',
-                textShadow: '0 0 5px rgba(0, 255, 0, 0.5)'
+                color: 'var(--primary-color)',
+                marginBottom: '8px'
               }}>
                 {metric.value}
               </div>
@@ -441,7 +507,7 @@ export default function RetroDashboard() {
                 fontSize: '16px',
                 lineHeight: '1.3',
                 padding: '0 5px',
-                color: 'var(--retro-secondary)',
+                color: 'var(--secondary-color)',
                 fontWeight: 'bold',
                 marginBottom: '4px'
               }}>
@@ -452,7 +518,7 @@ export default function RetroDashboard() {
                   fontSize: '14px',
                   lineHeight: '1.2',
                   padding: '0 5px',
-                  color: 'var(--retro-secondary)',
+                  color: 'var(--secondary-color)',
                   opacity: 0.8
                 }}>
                   {metric.sublabel}
@@ -466,11 +532,11 @@ export default function RetroDashboard() {
     
     // Default metrics display for other tabs
     return (
-      <div className={styles.retroMetrics}>
+      <div className={styles.professionalMetrics}>
         {metrics.map((metric, index) => (
-          <div key={index} className={styles.retroMetric}>
-            <span className={styles.retroMetricValue}>{metric.value}</span>
-            <span className={styles.retroMetricLabel}>{metric.label}</span>
+          <div key={index} className={styles.professionalMetric}>
+            <span className={styles.professionalMetricValue}>{metric.value}</span>
+            <span className={styles.professionalMetricLabel}>{metric.label}</span>
           </div>
         ))}
       </div>
@@ -533,17 +599,17 @@ export default function RetroDashboard() {
 
     return (
       <div style={{ marginTop: '20px' }}>
-        <h4 style={{ color: '#ffff00', marginBottom: '10px' }}>{title}</h4>
+        <h4 style={{ color: 'var(--primary-color)', marginBottom: '10px' }}>{title}</h4>
         <div style={{ 
           overflowX: 'auto', 
           maxHeight: '400px', 
           overflowY: 'auto', 
-          border: '1px solid #555', 
+          border: '1px solid var(--border-color)', 
           borderRadius: '8px',
-          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)'
+          boxShadow: 'var(--shadow-sm)'
         }}>
-          <table className={styles.retroTable} style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ position: 'sticky', top: 0, background: '#222', zIndex: 1 }}>
+          <table className={styles.professionalTable} style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ position: 'sticky', top: 0, background: 'var(--tertiary-bg)', zIndex: 1 }}>
               <tr>
                 {headers.map(header => (
                   <th 
@@ -553,9 +619,9 @@ export default function RetroDashboard() {
                       cursor: 'pointer',
                       padding: '12px 15px',
                       textAlign: 'left',
-                      backgroundColor: '#333',
-                      borderBottom: '2px solid #444',
-                      color: '#ffff00'
+                      backgroundColor: 'var(--tertiary-bg)',
+                      borderBottom: '2px solid var(--border-color)',
+                      color: 'var(--primary-color)'
                     }}
                     title="Click to sort"
                   >
@@ -567,16 +633,20 @@ export default function RetroDashboard() {
             </thead>
             <tbody>
               {sortedData.map((row, index) => (
-                <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#222' : '#272727' }}>
+                <tr key={index} style={{ backgroundColor: index % 2 === 0 ? 'var(--primary-bg)' : 'var(--tertiary-bg)' }}>
                   {headers.map(header => (
-                    <td key={header} style={{ padding: '10px 15px', borderBottom: '1px solid #444' }}>{row[header]}</td>
+                    <td key={header} style={{ 
+                      padding: '10px 15px', 
+                      borderBottom: '1px solid var(--border-color)',
+                      color: 'var(--primary-color)'
+                    }}>{row[header]}</td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p style={{ color: '#ffffff', fontSize: '12px', marginTop: '10px', textAlign: 'right' }}>
+        <p style={{ color: 'var(--secondary-color)', fontSize: '12px', marginTop: '10px', textAlign: 'right' }}>
           Showing all {tableData.length} records
         </p>
       </div>
@@ -590,8 +660,8 @@ export default function RetroDashboard() {
 
     if (isLoading) {
       return (
-        <div className={styles.retroLoading}>
-          <div className={styles.retroSpinner}></div>
+        <div className={styles.professionalLoading}>
+          <div className={styles.professionalSpinner}></div>
           Loading {tab} data...
         </div>
       );
@@ -599,10 +669,10 @@ export default function RetroDashboard() {
 
     if (hasError) {
       return (
-        <div className={styles.retroError}>
+        <div className={styles.professionalError}>
           Error: {hasError}
           <br />
-          <button onClick={() => fetchData(tab)} className={styles.retroBtn} style={{ marginTop: '10px' }}>
+          <button onClick={() => fetchData(tab)} className={styles.professionalBtn} style={{ marginTop: '10px' }}>
             Retry
           </button>
         </div>
@@ -625,35 +695,107 @@ export default function RetroDashboard() {
             {/* Left Side: Filters */}
             <div style={{ flex: activeTab === 'editors' ? '0 0 50%' : '0 0 25%' }}>
               {availableFilters[activeTab] && availableFilters[activeTab].length > 0 && (
-                <div className={styles.retroFilters}>
-                  <div className={styles.retroFilterTitle}>
-                    Filter {activeTab} ({availableFilters[activeTab].length} available)
+                <div className={styles.professionalFilters}>
+                  <div className={styles.professionalFilterTitle}>
+                    Select {activeTab === 'languages' ? 'Languages' : 'Editors'} ({availableFilters[activeTab].length} available)
                   </div>
-                  <div>
-                    <select 
-                      className={styles.retroSelect} 
-                      multiple 
-                      size={Math.min(10, (availableFilters[activeTab] || []).length)}
-                      value={filters[activeTab] || []}
-                      onChange={(e) => {
-                        try {
-                          const selected = Array.from(e.target.selectedOptions || [], option => option.value);
-                          setFilters(prev => ({ ...prev, [activeTab]: selected }));
-                        } catch (err) {
-                          console.error('Error in select onChange:', err);
-                        }
+                  
+                  {/* Search Input */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <input
+                      type="text"
+                      placeholder={`Search ${activeTab === 'languages' ? 'languages' : 'editors'}...`}
+                      value={searchTerms[activeTab] || ''}
+                      onChange={(e) => setSearchTerms(prev => ({ ...prev, [activeTab]: e.target.value }))}
+                      className={styles.dateInput}
+                      style={{ 
+                        width: '100%', 
+                        margin: '0',
+                        fontSize: '14px',
+                        padding: '8px 12px'
                       }}
-                    >
-                      {(availableFilters[activeTab] || []).map(option => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
-                  <div className={styles.retroControls}>
-                    <button onClick={applyFilters} className={styles.retroBtn}>Apply Filters</button>
-                    <button onClick={clearFilters} className={styles.retroBtn}>Clear All</button>
+
+                  <div className={styles.professionalCheckboxes} style={{ 
+                    maxHeight: '250px', 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: 'var(--radius-md)', 
+                    padding: '12px' 
+                  }}>
+                    {(availableFilters[activeTab] || [])
+                      .filter(option => 
+                        option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
+                      )
+                      .map(option => (
+                      <label key={option} className={styles.professionalCheckbox}>
+                        <input
+                          type="checkbox"
+                          checked={(filters[activeTab] || []).includes(option)}
+                          onChange={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try {
+                              const isChecked = e.target.checked;
+                              setFilters(prev => {
+                                const currentFilters = prev[activeTab] || [];
+                                if (isChecked) {
+                                  // Add the option if it's not already included
+                                  return { ...prev, [activeTab]: [...currentFilters, option] };
+                                } else {
+                                  // Remove the option
+                                  return { ...prev, [activeTab]: currentFilters.filter(item => item !== option) };
+                                }
+                              });
+                            } catch (err) {
+                              console.error('Error in checkbox onChange:', err);
+                            }
+                          }}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--secondary-color)' }}>
+                    Selected: {(filters[activeTab] || []).length} of {availableFilters[activeTab].length}
+                    {searchTerms[activeTab] && (
+                      <span> | Showing: {availableFilters[activeTab].filter(option => 
+                        option.toLowerCase().includes(searchTerms[activeTab].toLowerCase())
+                      ).length}</span>
+                    )}
+                  </div>
+                  <div className={styles.professionalControls}>
+                    <button onClick={applyFilters} className={styles.professionalBtn}>Apply Filters</button>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clearFilters();
+                      }} 
+                      className={styles.professionalBtn}
+                    >
+                      Clear All
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Select all filtered options
+                        const filteredOptions = availableFilters[activeTab].filter(option => 
+                          option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
+                        );
+                        setFilters(prev => ({ 
+                          ...prev, 
+                          [activeTab]: Array.from(new Set([...(prev[activeTab] || []), ...filteredOptions]))
+                        }));
+                      }} 
+                      className={styles.professionalBtn}
+                    >
+                      Select Visible
+                    </button>
                   </div>
                 </div>
               )}
@@ -667,8 +809,8 @@ export default function RetroDashboard() {
               alignItems: 'flex-start'
             }}>
               {activeTab !== 'billing' && (
-                <div className={styles.retroMetrics}>
-                  <div className={styles.retroMetric} style={activeTab === 'editors' ? {
+                <div className={styles.professionalMetrics}>
+                  <div className={styles.professionalMetric} style={activeTab === 'editors' ? {
                     width: '200px',
                     height: '200px',
                     display: 'flex',
@@ -681,10 +823,15 @@ export default function RetroDashboard() {
                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                     border: '1px solid #e0e0e0'
                   } : {}}>
-                    <span className={styles.retroMetricValue}>
-                      {data[activeTab]?.available_editors?.length || 0}
+                    <span className={styles.professionalMetricValue}>
+                      {activeTab === 'languages' 
+                        ? (data[activeTab]?.available_languages?.length || 0)
+                        : (data[activeTab]?.available_editors?.length || 0)
+                      }
                     </span>
-                    <span className={styles.retroMetricLabel}>Editors Tracked</span>
+                    <span className={styles.professionalMetricLabel}>
+                      {activeTab === 'languages' ? 'Total Languages' : 'Editors Tracked'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -697,35 +844,115 @@ export default function RetroDashboard() {
             
             {/* Filters below metrics if needed */}
             {availableFilters[activeTab] && availableFilters[activeTab].length > 0 && (
-              <div className={styles.retroFilters} style={{ maxWidth: '1200px', margin: '0 auto', width: '95%' }}>
-                <div className={styles.retroFilterTitle}>
+              <div className={styles.professionalFilters} style={{ maxWidth: '1200px', margin: '0 auto', width: '95%' }}>
+                <div className={styles.professionalFilterTitle}>
                   Filter {activeTab} ({availableFilters[activeTab].length} available)
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <select 
-                    className={styles.retroSelect} 
-                    multiple 
-                    size={Math.min(5, (availableFilters[activeTab] || []).length)}
-                    value={filters[activeTab] || []}
-                    onChange={(e) => {
-                      try {
-                        const selected = Array.from(e.target.selectedOptions || [], option => option.value);
-                        setFilters(prev => ({ ...prev, [activeTab]: selected }));
-                      } catch (err) {
-                        console.error('Error in select onChange:', err);
-                      }
+                
+                {/* Search Input */}
+                <div style={{ marginBottom: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder={`Search ${activeTab}...`}
+                    value={searchTerms[activeTab] || ''}
+                    onChange={(e) => setSearchTerms(prev => ({ ...prev, [activeTab]: e.target.value }))}
+                    className={styles.dateInput}
+                    style={{ 
+                      width: '100%', 
+                      margin: '0',
+                      fontSize: '14px',
+                      padding: '8px 12px'
                     }}
+                  />
+                </div>
+
+                <div className={styles.professionalCheckboxes} style={{ 
+                  maxHeight: '200px', 
+                  overflowY: 'auto', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: 'var(--radius-md)', 
+                  padding: '12px', 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                  gap: '8px' 
+                }}>
+                  {(availableFilters[activeTab] || [])
+                    .filter(option => 
+                      option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
+                    )
+                    .map(option => (
+                    <label key={option} className={styles.professionalCheckbox}>
+                      <input
+                        type="checkbox"
+                        checked={(filters[activeTab] || []).includes(option)}
+                        onChange={(e) => {
+                          try {
+                            const isChecked = e.target.checked;
+                            setFilters(prev => {
+                              const currentFilters = prev[activeTab] || [];
+                              if (isChecked) {
+                                return { ...prev, [activeTab]: [...currentFilters, option] };
+                              } else {
+                                return { ...prev, [activeTab]: currentFilters.filter(item => item !== option) };
+                              }
+                            });
+                          } catch (err) {
+                            console.error('Error in checkbox onChange:', err);
+                          }
+                        }}
+                      />
+                      <span>{option}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--secondary-color)', textAlign: 'center' }}>
+                  Selected: {(filters[activeTab] || []).length} of {availableFilters[activeTab].length}
+                  {searchTerms[activeTab] && (
+                    <span> | Showing: {availableFilters[activeTab].filter(option => 
+                      option.toLowerCase().includes(searchTerms[activeTab].toLowerCase())
+                    ).length}</span>
+                  )}
+                </div>
+                <div className={styles.professionalControls} style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      applyFilters();
+                    }} 
+                    className={styles.professionalBtn}
                   >
-                    {(availableFilters[activeTab] || []).map(option => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <div className={styles.retroControls} style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={applyFilters} className={styles.retroBtn}>Apply Filters</button>
-                    <button onClick={clearFilters} className={styles.retroBtn}>Clear All</button>
-                  </div>
+                    Apply Filters
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      clearFilters();
+                    }} 
+                    className={styles.professionalBtn}
+                  >
+                    Clear All
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const filteredOptions = availableFilters[activeTab].filter(option => 
+                        option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
+                      );
+                      setFilters(prev => ({ 
+                        ...prev, 
+                        [activeTab]: Array.from(new Set([...(prev[activeTab] || []), ...filteredOptions]))
+                      }));
+                    }} 
+                    className={styles.professionalBtn}
+                  >
+                    Select Visible
+                  </button>
                 </div>
               </div>
             )}
@@ -737,18 +964,18 @@ export default function RetroDashboard() {
           <>
             {/* Active vs Engaged Users */}
             {data[activeTab]?.active_vs_engaged_daily && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', marginTop: '10px', marginLeft: 'auto', marginRight: 'auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', marginTop: '10px', marginLeft: 'auto', marginRight: 'auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('org-active-engaged')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Active vs Engaged Users</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Active vs Engaged Users</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['org-active-engaged'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['org-active-engaged'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px', maxWidth: '1200px', width: '95%' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['org-active-engaged'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px', maxWidth: '1200px', width: '95%' }}>
                     {(() => {
                       const chartData = createChartData(
                         tabData.active_vs_engaged_daily.data,
@@ -758,10 +985,10 @@ export default function RetroDashboard() {
                       return chartData ? <Line key={getChartKey()} data={chartData} options={chartOptions} /> : null;
                     })()}
                   </div>
-                  <div className={styles.retroControlsSection}>
+                  <div className={styles.professionalControlsSection}>
                     <button 
                       onClick={() => toggleTables(activeTab + '-active-engaged')} 
-                      className={`${styles.retroBtn} ${showTables[activeTab + '-active-engaged'] ? styles.active : ''}`}
+                      className={`${styles.professionalBtn} ${showTables[activeTab + '-active-engaged'] ? styles.active : ''}`}
                     >
                       {showTables[activeTab + '-active-engaged'] ? 'Hide Table' : 'Show Table'}
                     </button>
@@ -773,18 +1000,18 @@ export default function RetroDashboard() {
 
             {/* Features Usage */}
             {tabData.features_daily && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('org-features')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Features Usage</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Features Usage</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['org-features'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['org-features'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['org-features'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       const chartData = createChartData(
                         tabData.features_daily.data,
@@ -795,10 +1022,10 @@ export default function RetroDashboard() {
                       return chartData ? <Line key={getChartKey()} data={chartData} options={chartOptions} /> : null;
                     })()}
                   </div>
-                  <div className={styles.retroControlsSection}>
+                  <div className={styles.professionalControlsSection}>
                     <button 
                       onClick={() => toggleTables(activeTab + '-features')} 
-                      className={`${styles.retroBtn} ${showTables[activeTab + '-features'] ? styles.active : ''}`}
+                      className={`${styles.professionalBtn} ${showTables[activeTab + '-features'] ? styles.active : ''}`}
                     >
                       {showTables[activeTab + '-features'] ? 'Hide Table' : 'Show Table'}
                     </button>
@@ -814,18 +1041,18 @@ export default function RetroDashboard() {
           <>
             {/* Top Languages */}
             {originalData[activeTab]?.top_languages && Object.keys(originalData[activeTab].top_languages.data).length > 0 && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('lang-top')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Top Languages</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Top Languages</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['lang-top'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['lang-top'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['lang-top'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       const chartData = createPieData(originalData[activeTab]?.top_languages?.data);
                       return chartData ? <Pie key={getPieChartKey()} data={chartData} options={chartOptions} /> : null;
@@ -837,18 +1064,18 @@ export default function RetroDashboard() {
 
             {/* Code Acceptance and Suggestions Per Language */}
             {data[activeTab]?.languages_daily && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('lang-code-stats')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Code Acceptance and Suggestions Per Language</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Code Acceptance and Suggestions Per Language</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['lang-code-stats'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['lang-code-stats'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['lang-code-stats'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       // Filter data for selected languages or get top 3 if none selected
                       const languagesData = data[activeTab].languages_daily.data;
@@ -901,7 +1128,11 @@ export default function RetroDashboard() {
                       
                       // Create datasets for each language (both acceptances and suggestions)
                       const allDatasets: any[] = [];
-                      const colors = ['#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8000', '#80ff00'];
+                      // Professional color palette with high contrast and accessibility
+                      const colors = [
+                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+                        '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+                      ];
                       
                       selectedLangs.forEach((lang: string, langIndex: number) => {
                         // Acceptance dataset for this language
@@ -951,17 +1182,17 @@ export default function RetroDashboard() {
                                 text: selectedLangs.length === 0 ? 
                                   'No languages selected' : 
                                   `Showing data for: ${selectedLangs.join(', ')}`,
-                                color: '#ffffff'
+                                color: 'var(--primary-color)'
                               }
                             }
                           }} 
                         /> : null;
                     })()}
                   </div>
-                  <div className={styles.retroControlsSection}>
+                  <div className={styles.professionalControlsSection}>
                     <button 
                       onClick={() => toggleTables(activeTab)} 
-                      className={`${styles.retroBtn} ${showTables[activeTab] ? styles.active : ''}`}
+                      className={`${styles.professionalBtn} ${showTables[activeTab] ? styles.active : ''}`}
                     >
                       {showTables[activeTab] ? 'Hide Table' : 'Show Table'}
                     </button>
@@ -988,18 +1219,18 @@ export default function RetroDashboard() {
           <>
             {/* Top Editors */}
             {originalData[activeTab]?.top_editors && Object.keys(originalData[activeTab].top_editors.data).length > 0 && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('edit-top')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Top Editors</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Top Editors</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['edit-top'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['edit-top'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['edit-top'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       const chartData = createPieData(originalData[activeTab]?.top_editors?.data);
                       return chartData ? <Pie key={getPieChartKey()} data={chartData} options={chartOptions} /> : null;
@@ -1011,18 +1242,18 @@ export default function RetroDashboard() {
 
             {/* Total Code Acceptance and Suggestions per Editor */}
             {data[activeTab]?.editors_daily && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('edit-code-stats')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Total Code Acceptance and Suggestions per Editor</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Total Code Acceptance and Suggestions per Editor</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['edit-code-stats'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['edit-code-stats'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['edit-code-stats'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       // Filter data for selected editors or get all if none selected
                       const editorsData = data[activeTab].editors_daily.data;
@@ -1058,7 +1289,11 @@ export default function RetroDashboard() {
                       
                       // Create datasets for each editor (both acceptances and suggestions)
                       const allDatasets: any[] = [];
-                      const colors = ['#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8000', '#80ff00'];
+                      // Professional color palette with high contrast and accessibility
+                      const colors = [
+                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+                        '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+                      ];
                       
                       selectedEditors.forEach((editor: string, editorIndex: number) => {
                         // Acceptances dataset for this editor
@@ -1107,17 +1342,17 @@ export default function RetroDashboard() {
                                 text: selectedEditors.length === 0 ? 
                                   'No editors selected' : 
                                   `Showing data for: ${selectedEditors.join(', ')}`,
-                                color: '#ffffff'
+                                color: 'var(--primary-color)'
                               }
                             }
                           }} 
-                        /> : <div style={{ color: '#ffff00', padding: '20px', textAlign: 'center' }}>No data available for selected editors</div>;
+                        /> : <div style={{ color: 'var(--secondary-color)', padding: '20px', textAlign: 'center' }}>No data available for selected editors</div>;
                     })()}
                   </div>
-                  <div className={styles.retroControlsSection}>
+                  <div className={styles.professionalControlsSection}>
                     <button 
                       onClick={() => toggleTables(activeTab + '-code')} 
-                      className={`${styles.retroBtn} ${showTables[activeTab + '-code'] ? styles.active : ''}`}
+                      className={`${styles.professionalBtn} ${showTables[activeTab + '-code'] ? styles.active : ''}`}
                     >
                       {showTables[activeTab + '-code'] ? 'Hide Table' : 'Show Table'}
                     </button>
@@ -1145,18 +1380,18 @@ export default function RetroDashboard() {
 
             {/* Engaged Users per Editor */}
             {data[activeTab]?.editors_daily && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('edit-engaged-users')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Engaged Users per Editor</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Engaged Users per Editor</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['edit-engaged-users'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['edit-engaged-users'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['edit-engaged-users'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       // Filter data for selected editors or get all if none selected
                       const editorsData = data[activeTab].editors_daily.data;
@@ -1200,8 +1435,11 @@ export default function RetroDashboard() {
                       const chartData = Array.from(dateGroups.values())
                         .sort((a: any, b: any) => a.date.localeCompare(b.date));
                       
-                      // Define colors for each editor
-                      const colors = ['#00ff00', '#ffff00', '#ff00ff', '#00ffff', '#ff8000', '#80ff00'];
+                      // Professional color palette for editors
+                      const colors = [
+                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
+                        '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+                      ];
                       
                       // Create datasets for each editor
                       const datasets = selectedEditors.map((editor: string, index: number) => ({
@@ -1233,17 +1471,17 @@ export default function RetroDashboard() {
                                 text: selectedEditors.length === 0 ? 
                                   'No editors selected' : 
                                   `Showing data for: ${selectedEditors.join(', ')}`,
-                                color: '#ffffff'
+                                color: 'var(--primary-color)'
                               }
                             }
                           }}
-                        /> : <div style={{ color: '#ffff00', padding: '20px', textAlign: 'center' }}>No data available for selected editors</div>;
+                        /> : <div style={{ color: 'var(--secondary-color)', padding: '20px', textAlign: 'center' }}>No data available for selected editors</div>;
                     })()}
                   </div>
-                  <div className={styles.retroControlsSection}>
+                  <div className={styles.professionalControlsSection}>
                     <button 
                       onClick={() => toggleTables(activeTab + '-engaged')} 
-                      className={`${styles.retroBtn} ${showTables[activeTab + '-engaged'] ? styles.active : ''}`}
+                      className={`${styles.professionalBtn} ${showTables[activeTab + '-engaged'] ? styles.active : ''}`}
                     >
                       {showTables[activeTab + '-engaged'] ? 'Hide Table' : 'Show Table'}
                     </button>
@@ -1275,15 +1513,15 @@ export default function RetroDashboard() {
         {activeTab === 'billing' && (
           <>
             {/* Billing Information */}
-            <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
-              <div className={styles.retroSectionHeader}>
-                <h3 className={styles.retroSectionTitle}>Billing Information</h3>
+            <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSectionHeader}>
+                <h3 className={styles.professionalSectionTitle}>Billing Information</h3>
               </div>
-              <div className={styles.retroSectionContent}>
+              <div className={styles.professionalSectionContent}>
                 {data[activeTab]?.error ? (
-                  <p style={{ color: '#ffff00' }}>No billing data available in the current database</p>
+                  <p style={{ color: 'var(--warning-color)' }}>No billing data available in the current database</p>
                 ) : (
-                  <div className={styles.retroMetrics}>
+                  <div className={styles.professionalMetrics}>
                     {(() => {
                       // Calculate total premium users
                       const totalPremiumUsers = data[activeTab]?.seat_details?.data?.length || 0;
@@ -1299,13 +1537,13 @@ export default function RetroDashboard() {
                       
                       return (
                         <>
-                          <div className={styles.retroMetric}>
-                            <span className={styles.retroMetricValue}>{totalPremiumUsers}</span>
-                            <span className={styles.retroMetricLabel}>Total Premium Users</span>
+                          <div className={styles.professionalMetric}>
+                            <span className={styles.professionalMetricValue}>{totalPremiumUsers}</span>
+                            <span className={styles.professionalMetricLabel}>Total Premium Users</span>
                           </div>
-                          <div className={styles.retroMetric}>
-                            <span className={styles.retroMetricValue}>{lastWeekUsers}</span>
-                            <span className={styles.retroMetricLabel}>New Users (Last 7 Days)</span>
+                          <div className={styles.professionalMetric}>
+                            <span className={styles.professionalMetricValue}>{lastWeekUsers}</span>
+                            <span className={styles.professionalMetricLabel}>New Users (Last 7 Days)</span>
                           </div>
                         </>
                       );
@@ -1317,18 +1555,18 @@ export default function RetroDashboard() {
 
             {/* Plan Purchases by Date */}
             {data[activeTab]?.plan_purchases && data[activeTab].plan_purchases.data.length > 0 && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('billing-plan-purchases')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Plan Purchases by Date</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Plan Purchases by Date</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['billing-plan-purchases'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['billing-plan-purchases'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroChart} style={{ margin: '0 auto', height: '500px' }}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['billing-plan-purchases'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       if (!data[activeTab].plan_purchases.data || data[activeTab].plan_purchases.data.length === 0) return null;
                       
@@ -1376,19 +1614,19 @@ export default function RetroDashboard() {
 
             {/* Billing Seat Details */}
             {data[activeTab]?.seat_details && data[activeTab].seat_details.data.length > 0 && (
-              <div className={styles.retroSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
                 <div 
-                  className={styles.retroSectionHeader}
+                  className={styles.professionalSectionHeader}
                   onClick={() => toggleSection('billing-seat-details')}
                 >
-                  <h3 className={styles.retroSectionTitle}>Billing Seat Details</h3>
-                  <button className={styles.retroToggleBtn}>
+                  <h3 className={styles.professionalSectionTitle}>Billing Seat Details</h3>
+                  <button className={styles.professionalToggleBtn}>
                     {collapsedSections['billing-seat-details'] ? '▼ Expand' : '▲ Collapse'}
                   </button>
                 </div>
-                <div className={`${styles.retroSectionContent} ${collapsedSections['billing-seat-details'] ? styles.collapsed : ''}`}>
-                  <div className={styles.retroTableContainer}>
-                    <table className={styles.retroTable}>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['billing-seat-details'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalTableContainer}>
+                    <table className={styles.professionalTable}>
                       <thead>
                         <tr>
                           <th>#</th>
@@ -1429,23 +1667,23 @@ export default function RetroDashboard() {
         )}
 
         {/* Raw Data Control */}
-        <div className={styles.retroSection} style={{ 
+        <div className={styles.professionalSection} style={{ 
           maxWidth: '1200px', 
           margin: '30px auto',
           width: '95%'
         }}>
-          <div className={styles.retroSectionHeader}>
-            <h3 className={styles.retroSectionTitle}>Raw Data</h3>
+          <div className={styles.professionalSectionHeader}>
+            <h3 className={styles.professionalSectionTitle}>Raw Data</h3>
             <button 
               onClick={() => toggleRawData(activeTab)} 
-              className={`${styles.retroBtn} ${showRawData[activeTab] ? styles.active : ''}`}
+              className={`${styles.professionalBtn} ${showRawData[activeTab] ? styles.active : ''}`}
             >
               {showRawData[activeTab] ? 'Hide Raw Data' : 'Show Raw Data'}
             </button>
           </div>
           {showRawData[activeTab] && (
-            <div className={styles.retroSectionContent}>
-              <div className={styles.retroRawData}>
+            <div className={styles.professionalSectionContent}>
+              <div className={styles.professionalRawData}>
                 <pre>{JSON.stringify(data[activeTab], null, 2)}</pre>
               </div>
             </div>
@@ -1504,13 +1742,15 @@ export default function RetroDashboard() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <select 
-          className={styles.retroSelect}
+          className={styles.timePeriodSelect}
           value={timePeriodFilter}
           onChange={(e) => setTimePeriodFilter(e.target.value)}
           style={{ 
             minWidth: '160px',
-            height: '32px',
-            fontSize: '12px'
+            height: '36px',
+            fontSize: '14px',
+            width: 'auto',
+            marginBottom: '0'
           }}
         >
           {timePeriodOptions.map(option => (
@@ -1522,20 +1762,24 @@ export default function RetroDashboard() {
         
         {timePeriodFilter === 'custom' && (
           <>
-            <DatePicker
-              selected={customStartDate}
-              onChange={(date) => setCustomStartDate(date)}
-              placeholderText="Start Date"
-              dateFormat="yyyy-MM-dd"
-              className={styles.retroSelect}
-            />
-            <DatePicker
-              selected={customEndDate}
-              onChange={(date) => setCustomEndDate(date)}
-              placeholderText="End Date"
-              dateFormat="yyyy-MM-dd"
-              className={styles.retroSelect}
-            />
+            <div style={{ width: '150px' }}>
+              <DatePicker
+                selected={customStartDate}
+                onChange={(date) => setCustomStartDate(date)}
+                placeholderText="Start Date"
+                dateFormat="yyyy-MM-dd"
+                className={styles.dateInput}
+              />
+            </div>
+            <div style={{ width: '150px' }}>
+              <DatePicker
+                selected={customEndDate}
+                onChange={(date) => setCustomEndDate(date)}
+                placeholderText="End Date"
+                dateFormat="yyyy-MM-dd"
+                className={styles.dateInput}
+              />
+            </div>
           </>
         )}
       </div>
@@ -1543,21 +1787,26 @@ export default function RetroDashboard() {
   };
 
   return (
-    <div className={styles.retroContainer}>
-      <div className={styles.retroHeader}>
-        <h1 className={styles.retroTitle}>GITHUB COPILOT ANALYTICS</h1>
-        <p className={styles.retroSubtitle}>
-          [ VISUALIZE USAGE • ENGAGEMENT • FEATURE ADOPTION ]
+    <div className={styles.professionalContainer}>
+      <div className={styles.professionalHeader}>
+        <h1 className={styles.professionalTitle}>GitHub Copilot Analytics</h1>
+        <p className={styles.professionalSubtitle}>
+          Comprehensive insights into usage, engagement, and feature adoption
         </p>
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', width: '95%' }}>
-        <div className={styles.retroTabs}>
+        <div className={styles.professionalTabs}>
           {tabs.map(tab => (
             <button
               key={tab.id}
-              className={`${styles.retroTab} ${activeTab === tab.id ? styles.active : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              type="button"
+              className={`${styles.professionalTab} ${activeTab === tab.id ? styles.active : ''}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveTab(tab.id);
+              }}
             >
               {tab.icon} {tab.label}
             </button>
