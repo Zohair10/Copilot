@@ -49,6 +49,13 @@ export default function ProfessionalDashboard() {
     billing: []
   });
 
+  const [pendingFilters, setPendingFilters] = useState<{ [key: string]: string[] }>({
+    organization: [],
+    languages: [],
+    editors: [],
+    billing: []
+  });
+
   const [availableFilters, setAvailableFilters] = useState<{ [key: string]: string[] }>({
     organization: [],
     languages: [],
@@ -59,12 +66,6 @@ export default function ProfessionalDashboard() {
   const [timePeriodFilter, setTimePeriodFilter] = useState('all-time');
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
-  const [searchTerms, setSearchTerms] = useState<{ [key: string]: string }>({
-    organization: '',
-    languages: '',
-    editors: '',
-    billing: ''
-  });
 
   const tabs = [
     { id: 'organization', label: 'Organization', icon: '' },
@@ -75,8 +76,6 @@ export default function ProfessionalDashboard() {
 
   useEffect(() => {
     fetchData(activeTab);
-    // Clear search term when tab changes for better UX
-    setSearchTerms(prev => ({ ...prev, [activeTab]: '' }));
   }, [activeTab]);
 
   // Add useEffect to re-fetch data when time period filter changes
@@ -93,12 +92,7 @@ export default function ProfessionalDashboard() {
     }
   }, [customStartDate, customEndDate]);
 
-  // Add useEffect to re-fetch data when filters change
-  useEffect(() => {
-    if (activeTab) {
-      fetchData(activeTab);
-    }
-  }, [filters]);
+  // Remove automatic filter refresh - only refresh when Apply is clicked
 
   // Add useEffect with cleanup to destroy chart instances on tab change/unmount
   useEffect(() => {
@@ -112,6 +106,10 @@ export default function ProfessionalDashboard() {
   }, [activeTab]); // Run cleanup when tab changes
 
   const fetchData = async (tab: string) => {
+    return fetchDataWithFilters(tab, filters[tab] || []);
+  };
+
+  const fetchDataWithFilters = async (tab: string, tabFilters: string[]) => {
     if (!tab) {
       console.error('Tab is undefined in fetchData');
       return;
@@ -134,16 +132,16 @@ export default function ProfessionalDashboard() {
       
       // Apply filters client-side for line charts
       let filteredResult = { ...result };
-      if (filters[tab] && Array.isArray(filters[tab]) && filters[tab].length > 0) {
+      if (tabFilters && Array.isArray(tabFilters) && tabFilters.length > 0) {
         // Filter the data based on selected filters
         if (tab === 'languages' && result.languages_daily?.data) {
           filteredResult.languages_daily.data = result.languages_daily.data.filter((item: any) => 
-            filters[tab].includes(item.language)
+            tabFilters.includes(item.language)
           );
         }
         if (tab === 'editors' && result.editors_daily?.data) {
           filteredResult.editors_daily.data = result.editors_daily.data.filter((item: any) => 
-            filters[tab].includes(item.editor)
+            tabFilters.includes(item.editor)
           );
         }
       }
@@ -195,6 +193,9 @@ export default function ProfessionalDashboard() {
 
   const applyFilters = async () => {
     try {
+      // Apply pending filters to active filters
+      setFilters(prev => ({ ...prev, [activeTab]: pendingFilters[activeTab] || [] }));
+      
       // Ensure we have a proper activeTab before fetching
       if (activeTab) {
         await fetchData(activeTab);
@@ -206,12 +207,13 @@ export default function ProfessionalDashboard() {
 
   const clearFilters = async () => {
     try {
-      // Update filters state safely
+      // Clear both pending and active filters
+      setPendingFilters(prev => ({ ...prev, [activeTab]: [] }));
       setFilters(prev => ({ ...prev, [activeTab]: [] }));
       
       // Immediately fetch fresh data after clearing filters
       if (activeTab) {
-        await fetchData(activeTab);
+        await fetchDataWithFilters(activeTab, []);
       }
     } catch (err) {
       console.error('Error clearing filters:', err);
@@ -235,24 +237,30 @@ export default function ProfessionalDashboard() {
       });
     }
     
-    // Sort data by date to get the latest date
-    const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (sortedData.length === 0) return data;
+    // Use the current date (today) as the reference point for filtering
+    // This ensures that "last week" means the past 7 days from today, 
+    // and "last month" means the past 30 days from today
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today to include today's data
     
-    const latestDate = new Date(sortedData[0].date);
     let cutoffDate: Date;
     
     if (timePeriod === 'last-month') {
-      cutoffDate = new Date(latestDate);
-      cutoffDate.setMonth(cutoffDate.getMonth() - 1);
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 30); // 30 days ago from today
+      cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
     } else if (timePeriod === 'last-week') {
-      cutoffDate = new Date(latestDate);
-      cutoffDate.setDate(cutoffDate.getDate() - 7);
+      cutoffDate = new Date(today);
+      cutoffDate.setDate(cutoffDate.getDate() - 7); // 7 days ago from today
+      cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
     } else {
       return data; // fallback to all data
     }
     
-    return data.filter(item => new Date(item.date) >= cutoffDate);
+    return data.filter(item => {
+      const itemDate = new Date(item.date);
+      return itemDate >= cutoffDate && itemDate <= today;
+    });
   };
 
   const createChartData = (chartData: any[], xKey: string, yKeys: string[], type: 'line' | 'bar' = 'line') => {
@@ -687,65 +695,38 @@ export default function ProfessionalDashboard() {
         {activeTab !== 'organization' ? (
           <div style={{ 
             display: 'flex', 
-            gap: activeTab === 'editors' ? '40px' : '20px',
+            gap: (activeTab === 'editors' || activeTab === 'languages') ? '40px' : '20px',
             maxWidth: '1200px',
             margin: '0 auto 20px',
             width: '95%'
           }}>
             {/* Left Side: Filters */}
-            <div style={{ flex: activeTab === 'editors' ? '0 0 50%' : '0 0 25%' }}>
+            <div style={{ flex: (activeTab === 'editors' || activeTab === 'languages') ? '0 0 50%' : '0 0 25%' }}>
               {availableFilters[activeTab] && availableFilters[activeTab].length > 0 && (
                 <div className={styles.professionalFilters}>
                   <div className={styles.professionalFilterTitle}>
-                    Select {activeTab === 'languages' ? 'Languages' : 'Editors'} ({availableFilters[activeTab].length} available)
+                    {activeTab === 'languages' 
+                      ? `Filter languages (showing top 3 by default)`
+                      : activeTab === 'editors'
+                      ? `Filter editors (showing all by default)`
+                      : `Filter ${activeTab}`
+                    }
                   </div>
-                  
-                  {/* Search Input */}
-                  <div style={{ marginBottom: '12px' }}>
-                    <input
-                      type="text"
-                      placeholder={`Search ${activeTab === 'languages' ? 'languages' : 'editors'}...`}
-                      value={searchTerms[activeTab] || ''}
-                      onChange={(e) => setSearchTerms(prev => ({ ...prev, [activeTab]: e.target.value }))}
-                      className={styles.dateInput}
-                      style={{ 
-                        width: '100%', 
-                        margin: '0',
-                        fontSize: '14px',
-                        padding: '8px 12px'
-                      }}
-                    />
-                  </div>
-
-                  <div className={styles.professionalCheckboxes} style={{ 
-                    maxHeight: '250px', 
-                    overflowY: 'auto', 
-                    border: '1px solid var(--border-color)', 
-                    borderRadius: 'var(--radius-md)', 
-                    padding: '12px' 
-                  }}>
-                    {(availableFilters[activeTab] || [])
-                      .filter(option => 
-                        option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
-                      )
-                      .map(option => (
+                  <div className={styles.professionalCheckboxesScrollable}>
+                    {(availableFilters[activeTab] || []).map(option => (
                       <label key={option} className={styles.professionalCheckbox}>
                         <input
                           type="checkbox"
-                          checked={(filters[activeTab] || []).includes(option)}
+                          checked={(pendingFilters[activeTab] || []).includes(option)}
                           onChange={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
                             try {
                               const isChecked = e.target.checked;
-                              setFilters(prev => {
-                                const currentFilters = prev[activeTab] || [];
+                              setPendingFilters(prev => {
+                                const current = prev[activeTab] || [];
                                 if (isChecked) {
-                                  // Add the option if it's not already included
-                                  return { ...prev, [activeTab]: [...currentFilters, option] };
+                                  return { ...prev, [activeTab]: [...current, option] };
                                 } else {
-                                  // Remove the option
-                                  return { ...prev, [activeTab]: currentFilters.filter(item => item !== option) };
+                                  return { ...prev, [activeTab]: current.filter((item: string) => item !== option) };
                                 }
                               });
                             } catch (err) {
@@ -753,49 +734,13 @@ export default function ProfessionalDashboard() {
                             }
                           }}
                         />
-                        <span>{option}</span>
+                        {option}
                       </label>
                     ))}
                   </div>
-                  <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--secondary-color)' }}>
-                    Selected: {(filters[activeTab] || []).length} of {availableFilters[activeTab].length}
-                    {searchTerms[activeTab] && (
-                      <span> | Showing: {availableFilters[activeTab].filter(option => 
-                        option.toLowerCase().includes(searchTerms[activeTab].toLowerCase())
-                      ).length}</span>
-                    )}
-                  </div>
                   <div className={styles.professionalControls}>
                     <button onClick={applyFilters} className={styles.professionalBtn}>Apply Filters</button>
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clearFilters();
-                      }} 
-                      className={styles.professionalBtn}
-                    >
-                      Clear All
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Select all filtered options
-                        const filteredOptions = availableFilters[activeTab].filter(option => 
-                          option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
-                        );
-                        setFilters(prev => ({ 
-                          ...prev, 
-                          [activeTab]: Array.from(new Set([...(prev[activeTab] || []), ...filteredOptions]))
-                        }));
-                      }} 
-                      className={styles.professionalBtn}
-                    >
-                      Select Visible
-                    </button>
+                    <button onClick={clearFilters} className={styles.professionalBtn}>Clear All</button>
                   </div>
                 </div>
               )}
@@ -803,14 +748,14 @@ export default function ProfessionalDashboard() {
             
             {/* Right Side: Metrics */}
             <div style={{ 
-              flex: activeTab === 'editors' ? '0 0 calc(50% - 40px)' : '1',
+              flex: (activeTab === 'editors' || activeTab === 'languages') ? '0 0 calc(50% - 40px)' : '1',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'flex-start'
             }}>
               {activeTab !== 'billing' && (
                 <div className={styles.professionalMetrics}>
-                  <div className={styles.professionalMetric} style={activeTab === 'editors' ? {
+                  <div className={styles.professionalMetric} style={(activeTab === 'editors' || activeTab === 'languages') ? {
                     width: '200px',
                     height: '200px',
                     display: 'flex',
@@ -824,13 +769,15 @@ export default function ProfessionalDashboard() {
                     border: '1px solid #e0e0e0'
                   } : {}}>
                     <span className={styles.professionalMetricValue}>
-                      {activeTab === 'languages' 
+                      {activeTab === 'editors' 
+                        ? (data[activeTab]?.available_editors?.length || 0)
+                        : activeTab === 'languages'
                         ? (data[activeTab]?.available_languages?.length || 0)
-                        : (data[activeTab]?.available_editors?.length || 0)
+                        : 0
                       }
                     </span>
                     <span className={styles.professionalMetricLabel}>
-                      {activeTab === 'languages' ? 'Total Languages' : 'Editors Tracked'}
+                      {activeTab === 'editors' ? 'Editors Tracked' : activeTab === 'languages' ? 'Languages Tracked' : 'Items Tracked'}
                     </span>
                   </div>
                 </div>
@@ -846,113 +793,33 @@ export default function ProfessionalDashboard() {
             {availableFilters[activeTab] && availableFilters[activeTab].length > 0 && (
               <div className={styles.professionalFilters} style={{ maxWidth: '1200px', margin: '0 auto', width: '95%' }}>
                 <div className={styles.professionalFilterTitle}>
-                  Filter {activeTab} ({availableFilters[activeTab].length} available)
+                  Filter {activeTab}
                 </div>
-                
-                {/* Search Input */}
-                <div style={{ marginBottom: '12px' }}>
-                  <input
-                    type="text"
-                    placeholder={`Search ${activeTab}...`}
-                    value={searchTerms[activeTab] || ''}
-                    onChange={(e) => setSearchTerms(prev => ({ ...prev, [activeTab]: e.target.value }))}
-                    className={styles.dateInput}
-                    style={{ 
-                      width: '100%', 
-                      margin: '0',
-                      fontSize: '14px',
-                      padding: '8px 12px'
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <select 
+                    className={styles.professionalSelect} 
+                    multiple 
+                    size={Math.min(5, (availableFilters[activeTab] || []).length)}
+                    value={filters[activeTab] || []}
+                    onChange={(e) => {
+                      try {
+                        const selected = Array.from(e.target.selectedOptions || [], option => option.value);
+                        setFilters(prev => ({ ...prev, [activeTab]: selected }));
+                      } catch (err) {
+                        console.error('Error in select onChange:', err);
+                      }
                     }}
-                  />
-                </div>
-
-                <div className={styles.professionalCheckboxes} style={{ 
-                  maxHeight: '200px', 
-                  overflowY: 'auto', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: 'var(--radius-md)', 
-                  padding: '12px', 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-                  gap: '8px' 
-                }}>
-                  {(availableFilters[activeTab] || [])
-                    .filter(option => 
-                      option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
-                    )
-                    .map(option => (
-                    <label key={option} className={styles.professionalCheckbox}>
-                      <input
-                        type="checkbox"
-                        checked={(filters[activeTab] || []).includes(option)}
-                        onChange={(e) => {
-                          try {
-                            const isChecked = e.target.checked;
-                            setFilters(prev => {
-                              const currentFilters = prev[activeTab] || [];
-                              if (isChecked) {
-                                return { ...prev, [activeTab]: [...currentFilters, option] };
-                              } else {
-                                return { ...prev, [activeTab]: currentFilters.filter(item => item !== option) };
-                              }
-                            });
-                          } catch (err) {
-                            console.error('Error in checkbox onChange:', err);
-                          }
-                        }}
-                      />
-                      <span>{option}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--secondary-color)', textAlign: 'center' }}>
-                  Selected: {(filters[activeTab] || []).length} of {availableFilters[activeTab].length}
-                  {searchTerms[activeTab] && (
-                    <span> | Showing: {availableFilters[activeTab].filter(option => 
-                      option.toLowerCase().includes(searchTerms[activeTab].toLowerCase())
-                    ).length}</span>
-                  )}
-                </div>
-                <div className={styles.professionalControls} style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      applyFilters();
-                    }} 
-                    className={styles.professionalBtn}
                   >
-                    Apply Filters
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      clearFilters();
-                    }} 
-                    className={styles.professionalBtn}
-                  >
-                    Clear All
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const filteredOptions = availableFilters[activeTab].filter(option => 
-                        option.toLowerCase().includes((searchTerms[activeTab] || '').toLowerCase())
-                      );
-                      setFilters(prev => ({ 
-                        ...prev, 
-                        [activeTab]: Array.from(new Set([...(prev[activeTab] || []), ...filteredOptions]))
-                      }));
-                    }} 
-                    className={styles.professionalBtn}
-                  >
-                    Select Visible
-                  </button>
+                    {(availableFilters[activeTab] || []).map(option => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <div className={styles.professionalControls} style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={applyFilters} className={styles.professionalBtn}>Apply Filters</button>
+                    <button onClick={clearFilters} className={styles.professionalBtn}>Clear All</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1077,11 +944,14 @@ export default function ProfessionalDashboard() {
                 <div className={`${styles.professionalSectionContent} ${collapsedSections['lang-code-stats'] ? styles.collapsed : ''}`}>
                   <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
-                      // Filter data for selected languages or get top 3 if none selected
-                      const languagesData = data[activeTab].languages_daily.data;
+                      // Use original data when no filters, filtered data when filters are applied
+                      const languagesData = filters[activeTab]?.length > 0 
+                        ? data[activeTab].languages_daily.data 
+                        : originalData[activeTab]?.languages_daily?.data || data[activeTab].languages_daily.data;
+                      
                       const selectedLangs = filters[activeTab]?.length > 0 
                         ? filters[activeTab] 
-                        : getTopLanguages(languagesData, 3);
+                        : getTopLanguages(originalData[activeTab]?.languages_daily?.data || data[activeTab].languages_daily.data, 3);
                       
                       // Apply time period filtering first
                       const filteredData = filterDataByTimePeriod(languagesData, timePeriodFilter);
@@ -1200,10 +1070,14 @@ export default function ProfessionalDashboard() {
                   {showTables[activeTab] && (() => {
                     const selectedLangs = filters[activeTab]?.length > 0 
                       ? filters[activeTab] 
-                      : getTopLanguages(data[activeTab].languages_daily.data, 3);
+                      : getTopLanguages(originalData[activeTab]?.languages_daily?.data || data[activeTab].languages_daily.data, 3);
+                    
+                    const dataToUse = filters[activeTab]?.length > 0 
+                      ? data[activeTab].languages_daily.data 
+                      : originalData[activeTab]?.languages_daily?.data || data[activeTab].languages_daily.data;
                     
                     return renderTable(
-                      data[activeTab].languages_daily.data.filter((item: any) => 
+                      dataToUse.filter((item: any) => 
                         selectedLangs.includes(item.language)
                       ), 
                       'Code Acceptance and Suggestions Per Language'
@@ -1800,13 +1674,8 @@ export default function ProfessionalDashboard() {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              type="button"
               className={`${styles.professionalTab} ${activeTab === tab.id ? styles.active : ''}`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setActiveTab(tab.id);
-              }}
+              onClick={() => setActiveTab(tab.id)}
             >
               {tab.icon} {tab.label}
             </button>
