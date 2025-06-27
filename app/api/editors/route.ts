@@ -17,8 +17,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No data found' });
     }
 
+    // Function to normalize editor names (merge vscode and VS Code)
+    const normalizeEditorName = (editorName: string): string => {
+      if (editorName.toLowerCase() === 'vscode' || editorName === 'VS Code') {
+        return 'VS Code';
+      }
+      return editorName;
+    };
+
     // Process editor data
-    const editorsData: any[] = [];
+    const editorsDataTemp: any[] = [];
     const allEditors = new Set<string>();
 
     data.forEach(item => {
@@ -28,10 +36,11 @@ export async function GET(request: NextRequest) {
       if (item.copilot_ide_code_completions?.editors) {
         item.copilot_ide_code_completions.editors.forEach((editorItem: any) => {
           if (editorItem.name) {
-            allEditors.add(editorItem.name);
+            const normalizedEditorName = normalizeEditorName(editorItem.name);
+            allEditors.add(normalizedEditorName);
             
             // Filter by selected editors if specified
-            if (selectedEditors.length === 0 || selectedEditors.includes(editorItem.name)) {
+            if (selectedEditors.length === 0 || selectedEditors.includes(editorItem.name) || selectedEditors.includes(normalizedEditorName)) {
               // Calculate total suggestions and acceptances for this editor
               let totalSuggestions = 0;
               let totalAcceptances = 0;
@@ -47,9 +56,9 @@ export async function GET(request: NextRequest) {
                 });
               }
 
-              editorsData.push({
+              editorsDataTemp.push({
                 date,
-                editor: editorItem.name,
+                editor: normalizedEditorName,
                 total_engaged_users: editorItem.total_engaged_users || 0,
                 total_code_acceptances: totalAcceptances,
                 total_code_suggestions: totalSuggestions,
@@ -61,6 +70,31 @@ export async function GET(request: NextRequest) {
         });
       }
     });
+
+    // Aggregate data for the same editor and date (merge vscode + VS Code)
+    const editorsAggregated: { [key: string]: any } = {};
+    editorsDataTemp.forEach(item => {
+      const key = `${item.date}-${item.editor}`;
+      if (!editorsAggregated[key]) {
+        editorsAggregated[key] = {
+          date: item.date,
+          editor: item.editor,
+          total_engaged_users: 0,
+          total_code_acceptances: 0,
+          total_code_suggestions: 0,
+          total_chat_acceptances: 0,
+          total_chat_turns: 0
+        };
+      }
+      
+      editorsAggregated[key].total_engaged_users += item.total_engaged_users;
+      editorsAggregated[key].total_code_acceptances += item.total_code_acceptances;
+      editorsAggregated[key].total_code_suggestions += item.total_code_suggestions;
+      editorsAggregated[key].total_chat_acceptances += item.total_chat_acceptances;
+      editorsAggregated[key].total_chat_turns += item.total_chat_turns;
+    });
+
+    const editorsData = Object.values(editorsAggregated);
 
     // Create weekly aggregation
     const weeklyEditors: { [key: string]: any } = {};

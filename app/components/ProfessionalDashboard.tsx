@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, TimeScale } from 'chart.js';
 import { Line, Bar, Pie } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import styles from '../styles/professional.module.css';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, TimeScale);
 
 interface TabData {
   [key: string]: any;
@@ -66,6 +67,11 @@ export default function ProfessionalDashboard() {
   const [timePeriodFilter, setTimePeriodFilter] = useState('all-time');
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [billingTableLimit, setBillingTableLimit] = useState(25);
+  const [billingSortConfig, setBillingSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' | null }>({
+    key: '',
+    direction: null
+  });
 
   const tabs = [
     { id: 'organization', label: 'Organization', icon: '' },
@@ -143,6 +149,20 @@ export default function ProfessionalDashboard() {
           filteredResult.editors_daily.data = result.editors_daily.data.filter((item: any) => 
             tabFilters.includes(item.editor)
           );
+        }
+      }
+      
+      // For organization tab, also fetch chat prompts data
+      if (tab === 'organization') {
+        try {
+          const chatPromptsResponse = await fetch('/api/chat-prompts');
+          if (chatPromptsResponse.ok) {
+            const chatPromptsData = await chatPromptsResponse.json();
+            filteredResult.chat_prompts = chatPromptsData;
+          }
+        } catch (chatError) {
+          console.warn('Failed to fetch chat prompts data:', chatError);
+          // Don't fail the whole request if chat prompts fail
         }
       }
       
@@ -299,7 +319,14 @@ export default function ProfessionalDashboard() {
     }));
 
     return {
-      labels: filteredData.map(item => item[xKey]),
+      labels: filteredData.map(item => {
+        // Convert date string to Date object for time scale
+        const dateValue = item[xKey];
+        if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+          return new Date(dateValue);
+        }
+        return dateValue;
+      }),
       datasets,
     };
   };
@@ -307,25 +334,250 @@ export default function ProfessionalDashboard() {
   const createPieData = (pieData: any) => {
     if (!pieData || typeof pieData !== 'object') return null;
 
-    const labels = Object.keys(pieData);
-    const values = Object.values(pieData) as number[];
+    // First, normalize language names and merge duplicates (case-insensitive)
+    const normalizedData: { [key: string]: number } = {};
+    
+    Object.entries(pieData).forEach(([language, value]) => {
+      const normalizedName = language.toLowerCase();
+      
+      // Normalize some common language names
+      let finalName = language;
+      if (normalizedName === 'javascript') finalName = 'JavaScript';
+      else if (normalizedName === 'typescript') finalName = 'TypeScript';
+      else if (normalizedName === 'python') finalName = 'Python';
+      else if (normalizedName === 'java') finalName = 'Java';
+      else if (normalizedName === 'others') finalName = 'Others'; // Keep existing Others
+      else if (normalizedName === 'csharp' || normalizedName === 'c#') finalName = 'C#';
+      else if (normalizedName === 'html') finalName = 'HTML';
+      else if (normalizedName === 'css') finalName = 'CSS';
+      else if (normalizedName === 'json') finalName = 'JSON';
+      else if (normalizedName === 'sql') finalName = 'SQL';
+      else if (normalizedName === 'go') finalName = 'Go';
+      else if (normalizedName === 'rust') finalName = 'Rust';
+      else if (normalizedName === 'php') finalName = 'PHP';
+      else if (normalizedName === 'ruby') finalName = 'Ruby';
+      else if (normalizedName === 'dart') finalName = 'Dart';
+      else if (normalizedName === 'kotlin') finalName = 'Kotlin';
+      else if (normalizedName === 'swift') finalName = 'Swift';
+      else if (normalizedName === 'yaml' || normalizedName === 'yml') finalName = 'YAML';
+      else if (normalizedName === 'xml') finalName = 'XML';
+      else if (normalizedName === 'markdown' || normalizedName === 'md') finalName = 'Markdown';
+      
+      if (!normalizedData[finalName]) {
+        normalizedData[finalName] = 0;
+      }
+      normalizedData[finalName] += (value as number);
+    });
+
+    const entries = Object.entries(normalizedData) as [string, number][];
+    const total = entries.reduce((sum, [, value]) => sum + value, 0);
+    
+    // Define the top 4 languages that should be shown individually
+    const topLanguagesToShow = ['Java', 'JavaScript', 'TypeScript', 'Python'];
+    
+    const mainLanguages: [string, number][] = [];
+    const languagesToGroup: [string, number][] = [];
+    
+    entries.forEach(([language, value]) => {
+      if (topLanguagesToShow.includes(language)) {
+        mainLanguages.push([language, value]);
+      } else {
+        // Everything else goes to "Others" - including existing "Others" and all small languages
+        languagesToGroup.push([language, value]);
+      }
+    });
+    
+    // Sort main languages by value (descending)
+    mainLanguages.sort(([, a], [, b]) => b - a);
+    
+    // Create final arrays for chart
+    const labels: string[] = [];
+    const values: number[] = [];
+    
+    // Add main languages (top 4)
+    mainLanguages.forEach(([language, value]) => {
+      labels.push(language);
+      values.push(value);
+    });
+    
+    // Add "Others" category combining all non-top-4 languages
+    if (languagesToGroup.length > 0) {
+      const othersTotal = languagesToGroup.reduce((sum, [, value]) => sum + value, 0);
+      
+      labels.push('Others');
+      values.push(othersTotal);
+    }
+
     // Professional color palette with high contrast
     const colors = [
       '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
-      '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+      '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
+      '#1e40af', '#059669', '#d97706', '#dc2626', '#7c3aed',
+      '#64748b' // Slate gray color for "Others"
+    ];
+
+    // Use slate gray color for "Others" if it exists
+    const backgroundColors = labels.map((label, index) => {
+      if (label.startsWith('Others')) {
+        return '#64748b'; // Slate gray for Others
+      }
+      return colors[index % (colors.length - 1)]; // Exclude the gray color for main languages
+    });
+
+    return {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: backgroundColors,
+        borderColor: '#ffffff',
+        borderWidth: 2,
+        hoverBorderWidth: 4,
+        hoverOffset: 8,
+        hoverBackgroundColor: backgroundColors.map(color => color + 'dd'),
+        hoverBorderColor: '#ffffff',
+      }],
+    };
+  };
+
+  const createEditorsPieData = (pieData: any) => {
+    if (!pieData || typeof pieData !== 'object') return null;
+
+    const entries = Object.entries(pieData) as [string, number][];
+    // Sort editors by value (descending)
+    entries.sort(([, a], [, b]) => b - a);
+    
+    const labels = entries.map(([editor]) => editor);
+    const values = entries.map(([, value]) => value);
+
+    // Professional color palette with high contrast - specific colors for editors
+    const editorColors = [
+      '#3b82f6', // Blue for VS Code
+      '#10b981', // Green for JetBrains  
+      '#f59e0b', // Amber for Eclipse
+      '#ef4444', // Red for VisualStudio
+      '#8b5cf6', // Violet for additional editors
+      '#06b6d4', // Cyan
+      '#f97316', // Orange
+      '#84cc16', // Lime
     ];
 
     return {
       labels,
       datasets: [{
         data: values,
-        backgroundColor: colors.slice(0, labels.length),
+        backgroundColor: editorColors.slice(0, labels.length),
         borderColor: '#ffffff',
         borderWidth: 2,
-        hoverBorderWidth: 3,
-        hoverOffset: 4,
+        hoverBorderWidth: 4,
+        hoverOffset: 8,
+        hoverBackgroundColor: editorColors.slice(0, labels.length).map(color => color + 'dd'),
+        hoverBorderColor: '#ffffff',
       }],
     };
+  };
+
+  // Pie chart specific options with smooth hover
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 1000,
+      easing: 'easeOutQuart' as const
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      intersect: true,
+    },
+    plugins: {
+      legend: {
+        labels: {
+          color: '#1e293b',
+          font: {
+            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            size: 14,
+            weight: 'normal' as const
+          },
+          padding: 20,
+          usePointStyle: true,
+          pointStyle: 'circle',
+          generateLabels: (chart: any) => {
+            const datasets = chart.data.datasets;
+            if (datasets.length && datasets[0].data.length) {
+              return chart.data.labels.map((label: string, i: number) => {
+                const dataset = datasets[0];
+                const total = dataset.data.reduce((sum: number, val: number) => sum + val, 0);
+                const value = dataset.data[i];
+                const percentage = ((value / total) * 100).toFixed(1);
+                
+                return {
+                  text: `${label} (${percentage}%)`,
+                  fillStyle: dataset.backgroundColor[i],
+                  strokeStyle: dataset.borderColor,
+                  lineWidth: dataset.borderWidth,
+                  pointStyle: 'circle',
+                  hidden: false,
+                  index: i
+                };
+              });
+            }
+            return [];
+          }
+        },
+        position: 'right' as const,
+        align: 'center' as const
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: 'rgba(255, 255, 255, 0.96)',
+        titleColor: '#1e293b',
+        bodyColor: '#475569',
+        borderColor: '#e2e8f0',
+        borderWidth: 2,
+        padding: 16,
+        cornerRadius: 12,
+        titleFont: {
+          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          size: 16,
+          weight: 'bold' as const
+        },
+        bodyFont: {
+          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          size: 14,
+          weight: 'normal' as const
+        },
+        boxPadding: 6,
+        usePointStyle: true,
+        callbacks: {
+          label: function(context: any) {
+            const label = context.label || '';
+            const value = context.formattedValue;
+            const dataset = context.dataset;
+            const total = dataset.data.reduce((sum: number, val: number) => sum + val, 0);
+            const percentage = ((context.parsed / total) * 100).toFixed(1);
+            
+            if (label === 'Others') {
+              return `Others: ${value} (${percentage}%)`;
+            }
+            return `${label}: ${value} (${percentage}%)`;
+          },
+          afterLabel: function(context: any) {
+            const label = context.label || '';
+            if (label === 'Others') {
+              return 'All other programming languages';
+            }
+            return '';
+          }
+        }
+      }
+    },
+    elements: {
+      arc: {
+        borderWidth: 2,
+        hoverBorderWidth: 4,
+      }
+    }
   };
 
   const chartOptions = {
@@ -370,6 +622,14 @@ export default function ProfessionalDashboard() {
     },
     scales: {
       x: {
+        type: 'time' as const,
+        time: {
+          unit: 'day' as const,
+          displayFormats: {
+            day: 'MMM dd'
+          },
+          tooltipFormat: 'MMM dd, yyyy'
+        },
         grid: { 
           color: '#f1f5f9',
           borderColor: '#e2e8f0',
@@ -378,12 +638,14 @@ export default function ProfessionalDashboard() {
           color: '#64748b',
           font: { 
             family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            size: 12,
+            size: 11,
             weight: 'normal' as const
           },
           maxRotation: 45,
           minRotation: 0,
           padding: 8,
+          autoSkip: true,
+          maxTicksLimit: 15,
         },
         border: {
           color: '#e2e8f0',
@@ -506,7 +768,8 @@ export default function ProfessionalDashboard() {
               <div style={{ 
                 fontSize: '34px', 
                 fontWeight: 'bold',
-                color: 'var(--primary-color)',
+                //color: 'var(--primary-color)',
+                color: '#5faafb',
                 marginBottom: '8px'
               }}>
                 {metric.value}
@@ -661,6 +924,28 @@ export default function ProfessionalDashboard() {
     );
   };
 
+  // Billing table sorting functions
+  const handleBillingSort = (key: string) => {
+    let direction: 'ascending' | 'descending' | null = 'ascending';
+    
+    if (billingSortConfig.key === key) {
+      if (billingSortConfig.direction === 'ascending') {
+        direction = 'descending';
+      } else if (billingSortConfig.direction === 'descending') {
+        direction = null;
+      }
+    }
+    
+    setBillingSortConfig({ key, direction });
+  };
+
+  const getBillingSortIndicator = (key: string) => {
+    if (billingSortConfig.key !== key) return '';
+    if (billingSortConfig.direction === 'ascending') return ' ▲';
+    if (billingSortConfig.direction === 'descending') return ' ▼';
+    return '';
+  };
+
   const renderTabContent = (tab: string) => {
     const tabData = data[tab];
     const isLoading = loading[tab];
@@ -706,9 +991,13 @@ export default function ProfessionalDashboard() {
                 <div className={styles.professionalFilters}>
                   <div className={styles.professionalFilterTitle}>
                     {activeTab === 'languages' 
-                      ? `Filter languages (showing top 3 by default)`
+                      ? (filters[activeTab]?.length > 0 
+                          ? `Filter languages (${filters[activeTab].length} selected)`
+                          : `Filter languages (showing top 3 by default)`)
                       : activeTab === 'editors'
-                      ? `Filter editors (showing all by default)`
+                      ? (filters[activeTab]?.length > 0 
+                          ? `Filter editors (${filters[activeTab].length} selected)`
+                          : `Filter editors (showing all by default)`)
                       : `Filter ${activeTab}`
                     }
                   </div>
@@ -901,6 +1190,86 @@ export default function ProfessionalDashboard() {
                 </div>
               </div>
             )}
+
+            {/* Average Chat Prompts per User by Editor */}
+            {tabData.chat_prompts?.success && tabData.chat_prompts.data && (
+              <div className={styles.professionalSection} style={{ maxWidth: '1200px', margin: '20px auto', width: '95%' }}>
+                <div 
+                  className={styles.professionalSectionHeader}
+                  onClick={() => toggleSection('org-chat-prompts')}
+                >
+                  <h3 className={styles.professionalSectionTitle}>Average Chat Prompts per User by Editor</h3>
+                  <button className={styles.professionalToggleBtn}>
+                    {collapsedSections['org-chat-prompts'] ? '▼ Expand' : '▲ Collapse'}
+                  </button>
+                </div>
+                <div className={`${styles.professionalSectionContent} ${collapsedSections['org-chat-prompts'] ? styles.collapsed : ''}`}>
+                  <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
+                    {(() => {
+                      const chatData = tabData.chat_prompts.data;
+                      const availableEditors = tabData.chat_prompts.available_editors || [];
+                      
+                      const chartData = createChartData(
+                        chatData,
+                        'date',
+                        availableEditors,
+                        'bar'
+                      );
+                      return chartData ? (
+                        <Bar 
+                          key={getChartKey()} 
+                          data={chartData} 
+                          options={{
+                            ...chartOptions,
+                            plugins: {
+                              ...chartOptions.plugins,
+                              title: {
+                                display: true,
+                                text: 'Average Chat Prompts per User by Editor Over Time',
+                                font: { size: 16, weight: 'bold' }
+                              },
+                              tooltip: {
+                                callbacks: {
+                                  label: function(context: any) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} prompts/user`;
+                                  }
+                                }
+                              }
+                            },
+                            scales: {
+                              ...chartOptions.scales,
+                              y: {
+                                ...chartOptions.scales?.y,
+                                title: {
+                                  display: true,
+                                  text: 'Average Prompts per User'
+                                }
+                              },
+                              x: {
+                                ...chartOptions.scales?.x,
+                                title: {
+                                  display: true,
+                                  text: 'Date'
+                                }
+                              }
+                            }
+                          }} 
+                        />
+                      ) : null;
+                    })()}
+                  </div>
+                  <div className={styles.professionalControlsSection}>
+                    <button 
+                      onClick={() => toggleTables(activeTab + '-chat-prompts')} 
+                      className={`${styles.professionalBtn} ${showTables[activeTab + '-chat-prompts'] ? styles.active : ''}`}
+                    >
+                      {showTables[activeTab + '-chat-prompts'] ? 'Hide Table' : 'Show Table'}
+                    </button>
+                  </div>
+                  {showTables[activeTab + '-chat-prompts'] && renderTable(tabData.chat_prompts.raw_data, 'Daily Average Chat Prompts per User by Editor')}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -922,7 +1291,7 @@ export default function ProfessionalDashboard() {
                   <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
                       const chartData = createPieData(originalData[activeTab]?.top_languages?.data);
-                      return chartData ? <Pie key={getPieChartKey()} data={chartData} options={chartOptions} /> : null;
+                      return chartData ? <Pie key={getPieChartKey()} data={chartData} options={pieChartOptions} /> : null;
                     })()}
                   </div>
                 </div>
@@ -998,38 +1367,41 @@ export default function ProfessionalDashboard() {
                       
                       // Create datasets for each language (both acceptances and suggestions)
                       const allDatasets: any[] = [];
-                      // Professional color palette with high contrast and accessibility
-                      const colors = [
-                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
-                        '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'
+                      // Enhanced professional color palette with high contrast and better distinguishability
+                      const acceptanceColors = [
+                        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                        '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5'
+                      ];
+                      const suggestionColors = [
+                        '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
+                        '#edc949', '#af7aa1', '#ff9d9a', '#9c755f', '#bab0ab',
+                        '#1f83b4', '#ff8c0e', '#3ca13c', '#e62738', '#a467cd'
                       ];
                       
                       selectedLangs.forEach((lang: string, langIndex: number) => {
                         // Acceptance dataset for this language
                         allDatasets.push({
-                          type: 'line',
+                          type: 'bar',
                           label: `${lang} Acceptances`,
                           data: chartData.map((item: any) => item[`${lang}_acceptances`] || 0),
-                          borderColor: colors[langIndex % colors.length],
-                          backgroundColor: `${colors[langIndex % colors.length]}20`,
-                          pointBackgroundColor: colors[langIndex % colors.length],
-                          borderWidth: 2,
-                          pointRadius: 4,
-                          tension: 0.1,
+                          backgroundColor: acceptanceColors[langIndex % acceptanceColors.length],
+                          borderColor: acceptanceColors[langIndex % acceptanceColors.length],
+                          borderWidth: 1,
+                          borderRadius: 4,
+                          borderSkipped: false,
                         });
                         
                         // Suggestions dataset for this language
                         allDatasets.push({
-                          type: 'line',
+                          type: 'bar',
                           label: `${lang} Suggestions`,
                           data: chartData.map((item: any) => item[`${lang}_suggestions`] || 0),
-                          borderColor: colors[langIndex % colors.length],
-                          backgroundColor: `${colors[langIndex % colors.length]}20`,
-                          borderDash: [5, 5],
-                          pointBackgroundColor: colors[langIndex % colors.length],
-                          borderWidth: 2,
-                          pointRadius: 3,
-                          tension: 0.1,
+                          backgroundColor: suggestionColors[langIndex % suggestionColors.length],
+                          borderColor: suggestionColors[langIndex % suggestionColors.length],
+                          borderWidth: 1,
+                          borderRadius: 4,
+                          borderSkipped: false,
                         });
                       });
                       
@@ -1040,19 +1412,91 @@ export default function ProfessionalDashboard() {
                       };
                       
                       return finalChartData ? 
-                        <Line 
+                        <Bar 
                           key={getChartKey()} 
                           data={finalChartData} 
                           options={{
                             ...chartOptions,
+                            scales: {
+                              x: {
+                                type: 'time',
+                                time: {
+                                  unit: 'day',
+                                  displayFormats: {
+                                    day: 'MMM dd',
+                                    week: 'MMM dd',
+                                    month: 'MMM yyyy'
+                                  },
+                                  tooltipFormat: 'PPP'
+                                },
+                                title: {
+                                  display: true,
+                                  text: 'Date',
+                                  color: 'var(--primary-color)'
+                                },
+                                grid: {
+                                  display: true,
+                                  color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                  autoSkip: false,
+                                  maxTicksLimit: 15,
+                                  color: 'var(--primary-color)',
+                                  maxRotation: 45
+                                }
+                              },
+                              y: {
+                                beginAtZero: true,
+                                title: {
+                                  display: true,
+                                  text: 'Count',
+                                  color: 'var(--primary-color)'
+                                },
+                                grid: {
+                                  display: true,
+                                  color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                  color: 'var(--primary-color)'
+                                }
+                              }
+                            },
                             plugins: {
                               ...chartOptions.plugins,
+                              legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                  usePointStyle: true,
+                                  pointStyle: 'rect',
+                                  color: 'var(--primary-color)',
+                                  font: {
+                                    size: 12
+                                  }
+                                }
+                              },
                               title: {
                                 display: true,
                                 text: selectedLangs.length === 0 ? 
                                   'No languages selected' : 
-                                  `Showing data for: ${selectedLangs.join(', ')}`,
-                                color: 'var(--primary-color)'
+                                  `Code Acceptance & Suggestions: ${selectedLangs.join(', ')}`,
+                                color: 'var(--primary-color)',
+                                font: {
+                                  size: 16,
+                                  weight: 'bold'
+                                }
+                              }
+                            },
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                              mode: 'index',
+                              intersect: false,
+                            },
+                            elements: {
+                              bar: {
+                                borderWidth: 1,
+                                borderRadius: 4
                               }
                             }
                           }} 
@@ -1106,8 +1550,8 @@ export default function ProfessionalDashboard() {
                 <div className={`${styles.professionalSectionContent} ${collapsedSections['edit-top'] ? styles.collapsed : ''}`}>
                   <div className={styles.professionalChart} style={{ margin: '0 auto', height: '500px' }}>
                     {(() => {
-                      const chartData = createPieData(originalData[activeTab]?.top_editors?.data);
-                      return chartData ? <Pie key={getPieChartKey()} data={chartData} options={chartOptions} /> : null;
+                      const chartData = createEditorsPieData(originalData[activeTab]?.top_editors?.data);
+                      return chartData ? <Pie key={getPieChartKey()} data={chartData} options={pieChartOptions} /> : null;
                     })()}
                   </div>
                 </div>
@@ -1397,11 +1841,20 @@ export default function ProfessionalDashboard() {
                 ) : (
                   <div className={styles.professionalMetrics}>
                     {(() => {
-                      // Calculate total premium users
-                      const totalPremiumUsers = data[activeTab]?.seat_details?.data?.length || 0;
+                      // Filter out users with N/A or Unknown values
+                      const validUsers = data[activeTab]?.seat_details?.data?.filter((user: any) => {
+                        const hasValidId = user.assignee_id && user.assignee_id !== 'N/A' && user.assignee_id !== 0;
+                        const hasValidLogin = user.assignee_login && 
+                                            user.assignee_login !== 'N/A' && 
+                                            user.assignee_login.toLowerCase() !== 'unknown';
+                        return hasValidId && hasValidLogin;
+                      }) || [];
                       
-                      // Calculate users who purchased in the last week
-                      const lastWeekUsers = data[activeTab]?.seat_details?.data?.filter((user: any) => {
+                      // Calculate total premium users (filtered)
+                      const totalPremiumUsers = validUsers.length;
+                      
+                      // Calculate users who purchased in the last week (filtered)
+                      const lastWeekUsers = validUsers.filter((user: any) => {
                         if (!user.created_at) return false;
                         const purchaseDate = new Date(user.created_at);
                         const oneWeekAgo = new Date();
@@ -1499,38 +1952,137 @@ export default function ProfessionalDashboard() {
                   </button>
                 </div>
                 <div className={`${styles.professionalSectionContent} ${collapsedSections['billing-seat-details'] ? styles.collapsed : ''}`}>
+                  {/* Display Control */}
+                  <div style={{ 
+                    marginBottom: '15px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '10px',
+                    fontSize: '14px'
+                  }}>
+                    <label htmlFor="billing-limit">Show entries:</label>
+                    <select
+                      id="billing-limit"
+                      value={billingTableLimit}
+                      onChange={(e) => setBillingTableLimit(Number(e.target.value))}
+                      style={{
+                        padding: '5px 10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        backgroundColor: 'var(--bg-color)',
+                        color: 'var(--text-color)'
+                      }}
+                    >
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={75}>75</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span style={{ color: 'var(--secondary-text-color)' }}>
+                      {(() => {
+                        const filteredData = data[activeTab].seat_details.data.filter((seat: any) => {
+                          const hasValidId = seat.assignee_id && seat.assignee_id !== 'N/A' && seat.assignee_id !== 0;
+                          const hasValidLogin = seat.assignee_login && 
+                                              seat.assignee_login !== 'N/A' && 
+                                              seat.assignee_login.toLowerCase() !== 'unknown';
+                          return hasValidId && hasValidLogin;
+                        });
+                        const totalCount = filteredData.length;
+                        const displayedCount = Math.min(billingTableLimit, totalCount);
+                        return `Showing ${displayedCount} of ${totalCount} entries`;
+                      })()}
+                    </span>
+                  </div>
                   <div className={styles.professionalTableContainer}>
                     <table className={styles.professionalTable}>
-                      <thead>
+                                           <thead>
                         <tr>
                           <th>#</th>
-                          <th>ID</th>
-                          <th>Username</th>
-                          <th>Plan Type</th>
-                          <th>Purchased Date</th>
-                          <th>Last Activity Date</th>
-                          <th>Last Activity Editor</th>
+                          <th 
+                            onClick={() => handleBillingSort('assignee_login')}
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            Username{getBillingSortIndicator('assignee_login')}
+                          </th>
+                          <th 
+                            onClick={() => handleBillingSort('created_at')}
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            Purchased Date{getBillingSortIndicator('created_at')}
+                          </th>
+                          <th 
+                            onClick={() => handleBillingSort('last_activity_at')}
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            Last Activity Date{getBillingSortIndicator('last_activity_at')}
+                          </th>
+                          <th 
+                            onClick={() => handleBillingSort('last_activity_editor')}
+                            style={{ cursor: 'pointer', userSelect: 'none' }}
+                          >
+                            Last Activity Editor{getBillingSortIndicator('last_activity_editor')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data[activeTab].seat_details.data
-                          // Sort by purchase date (created_at)
-                          .sort((a: any, b: any) => {
-                            const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
-                            const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
-                            return dateA.getTime() - dateB.getTime();
-                          })
-                          .map((seat: any, index: number) => (
-                          <tr key={seat.assignee_id || index}>
-                            <td>{index + 1}</td>
-                            <td>{seat.assignee_id || 'N/A'}</td>
-                            <td>{seat.assignee_login || 'N/A'}</td>
-                            <td>{seat.plan_type || 'N/A'}</td>
-                            <td>{seat.created_at || 'N/A'}</td>
-                            <td>{seat.last_activity_at || 'N/A'}</td>
-                            <td>{seat.last_activity_editor || 'N/A'}</td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          // Filter out users with N/A or Unknown values
+                          let filteredData = data[activeTab].seat_details.data.filter((seat: any) => {
+                            const hasValidId = seat.assignee_id && seat.assignee_id !== 'N/A' && seat.assignee_id !== 0;
+                            const hasValidLogin = seat.assignee_login && 
+                                                seat.assignee_login !== 'N/A' && 
+                                                seat.assignee_login.toLowerCase() !== 'unknown';
+                            return hasValidId && hasValidLogin;
+                          });
+
+                          // Apply sorting if active
+                          if (billingSortConfig.key && billingSortConfig.direction) {
+                            filteredData.sort((a: any, b: any) => {
+                              const aValue = a[billingSortConfig.key];
+                              const bValue = b[billingSortConfig.key];
+
+                              // Handle date sorting
+                              if (billingSortConfig.key === 'created_at' || billingSortConfig.key === 'last_activity_at') {
+                                const aDate = aValue ? new Date(aValue) : new Date(0);
+                                const bDate = bValue ? new Date(bValue) : new Date(0);
+                                return billingSortConfig.direction === 'ascending' 
+                                  ? aDate.getTime() - bDate.getTime() 
+                                  : bDate.getTime() - aDate.getTime();
+                              }
+
+                              // Handle string sorting
+                              const aString = String(aValue || '').toLowerCase();
+                              const bString = String(bValue || '').toLowerCase();
+                              
+                              if (aString < bString) {
+                                return billingSortConfig.direction === 'ascending' ? -1 : 1;
+                              }
+                              if (aString > bString) {
+                                return billingSortConfig.direction === 'ascending' ? 1 : -1;
+                              }
+                              return 0;
+                            });
+                          } else {
+                            // Default sort by purchase date (created_at) ascending if no custom sort
+                            filteredData.sort((a: any, b: any) => {
+                              const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+                              const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+                              return dateA.getTime() - dateB.getTime();
+                            });
+                          }
+
+                          // Limit the number of displayed records
+                          return filteredData.slice(0, billingTableLimit).map((seat: any, index: number) => (
+                            <tr key={seat.assignee_id || index}>
+                              <td>{index + 1}</td>
+                              <td>{seat.assignee_login}</td>
+                              <td>{seat.created_at || 'N/A'}</td>
+                              <td>{seat.last_activity_at || 'N/A'}</td>
+                              <td>{seat.last_activity_editor || 'N/A'}</td>
+                            </tr>
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   </div>

@@ -41,13 +41,35 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Process billing data for charts
-    const processedData = data.map(seat => ({
+    // Filter out users with invalid/missing data and process billing data for charts
+    const filteredData = data.filter(seat => {
+      // Exclude users with missing assignee data
+      const hasValidAssignee = seat.assignee && seat.assignee.login && seat.assignee.id;
+      // Exclude users with 'N/A' or 'Unknown' values
+      const hasValidLogin = seat.assignee?.login && 
+                           seat.assignee.login.toLowerCase() !== 'unknown' && 
+                           seat.assignee.login.toLowerCase() !== 'n/a';
+      
+      return hasValidAssignee && hasValidLogin;
+    });
+    
+    // Function to normalize plan types
+    const normalizePlanType = (planType: string): string => {
+      if (!planType) return 'unknown';
+      const lowerPlanType = planType.toLowerCase();
+      // Merge 'business' and 'copilot_business' into 'business'
+      if (lowerPlanType === 'copilot_business' || lowerPlanType === 'copilot business') {
+        return 'business';
+      }
+      return planType;
+    };
+    
+    const processedData = filteredData.map(seat => ({
       created_at: new Date(seat.created_at).toISOString().split('T')[0],
       updated_at: seat.updated_at ? new Date(seat.updated_at).toISOString().split('T')[0] : null,
       assignee_login: seat.assignee?.login || 'Unknown',
       assignee_id: seat.assignee?.id || 0,
-      plan_type: seat.plan_type || 'unknown',
+      plan_type: normalizePlanType(seat.plan_type || 'unknown'),
       last_activity_at: seat.last_activity_at ? new Date(seat.last_activity_at).toISOString().split('T')[0] : null,
       last_activity_editor: seat.last_activity_editor || 'unknown'
     }));
@@ -66,11 +88,12 @@ export async function GET(request: NextRequest) {
       }
       creationDateCounts[seat.created_at]++;
 
-      // Count by plan type
-      if (!planTypeCounts[seat.plan_type]) {
-        planTypeCounts[seat.plan_type] = 0;
+      // Count by plan type (using normalized plan type)
+      const normalizedPlanType = seat.plan_type; // Already normalized in processedData
+      if (!planTypeCounts[normalizedPlanType]) {
+        planTypeCounts[normalizedPlanType] = 0;
       }
-      planTypeCounts[seat.plan_type]++;
+      planTypeCounts[normalizedPlanType]++;
 
       // Count by last activity editor
       if (seat.last_activity_editor && seat.last_activity_editor !== 'unknown') {
@@ -80,14 +103,14 @@ export async function GET(request: NextRequest) {
         editorCounts[seat.last_activity_editor]++;
       }
       
-      // Track plan purchases by date and plan type
+      // Track plan purchases by date and plan type (using normalized plan type)
       if (!planPurchasesByDate[seat.created_at]) {
         planPurchasesByDate[seat.created_at] = {};
       }
-      if (!planPurchasesByDate[seat.created_at][seat.plan_type]) {
-        planPurchasesByDate[seat.created_at][seat.plan_type] = 0;
+      if (!planPurchasesByDate[seat.created_at][normalizedPlanType]) {
+        planPurchasesByDate[seat.created_at][normalizedPlanType] = 0;
       }
-      planPurchasesByDate[seat.created_at][seat.plan_type]++;
+      planPurchasesByDate[seat.created_at][normalizedPlanType]++;
     });
 
     // Convert to chart format
@@ -125,7 +148,7 @@ export async function GET(request: NextRequest) {
         "title": "Billing Seat Details"
       },
       "raw_data": processedData,
-      "total_seats": data.length,
+      "total_seats": filteredData.length,
       "plan_purchases_timeline": {
         "data": Object.entries(planPurchasesByDate).map(([date, planTypes]) => ({
           date,

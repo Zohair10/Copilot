@@ -33,12 +33,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No data found for the specified date range' });
     }
 
-    // Process daily data
-    const dailyData = data.map(item => ({
+    // Process daily data and fill gaps
+    const rawDailyData = data.map(item => ({
       date: new Date(item.date).toISOString().split('T')[0],
       total_active_users: item.total_active_users || 0,
       total_engaged_users: item.total_engaged_users || 0
     }));
+
+    // Fill missing dates with zero values
+    const dailyData = fillMissingDates(rawDailyData);
 
     // Process weekly data
     const weeklyData: { [key: string]: any } = {};
@@ -61,7 +64,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Process features data
-    const featuresData = data.map(item => {
+    const rawFeaturesData = data.map(item => {
       // Sum up engaged users from all editors for code completions
       const codeCompletionUsers = item.copilot_ide_code_completions?.editors?.reduce((sum: number, editor: any) => {
         return sum + (editor.total_engaged_users || 0);
@@ -75,6 +78,9 @@ export async function GET(request: NextRequest) {
         Code_Completion: codeCompletionUsers
       };
     });
+
+    // Fill missing dates for features data
+    const featuresData = fillMissingFeaturesData(rawFeaturesData);
 
     // Process weekly features data
     const weeklyFeaturesData: { [key: string]: any } = {};
@@ -136,4 +142,74 @@ function getStartOfWeek(date: Date): Date {
   const day = date.getDay();
   const diff = date.getDate() - day;
   return new Date(date.setDate(diff));
+}
+
+function fillMissingDates(data: any[]): any[] {
+  if (data.length === 0) return data;
+  
+  const result = [];
+  const sortedData = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  
+  let currentDate = new Date(sortedData[0].date);
+  const endDate = new Date(sortedData[sortedData.length - 1].date);
+  
+  let dataIndex = 0;
+  
+  while (currentDate <= endDate) {
+    const currentDateStr = currentDate.toISOString().split('T')[0];
+    
+    // Check if we have data for this date
+    if (dataIndex < sortedData.length && sortedData[dataIndex].date === currentDateStr) {
+      result.push(sortedData[dataIndex]);
+      dataIndex++;
+    } else {
+      // Fill missing date with zero values
+      result.push({
+        date: currentDateStr,
+        total_active_users: 0,
+        total_engaged_users: 0
+      });
+    }
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return result;
+}
+
+function fillMissingFeaturesData(data: any[]): any[] {
+  if (data.length === 0) return data;
+  
+  const result = [];
+  const sortedData = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  
+  let currentDate = new Date(sortedData[0].date);
+  const endDate = new Date(sortedData[sortedData.length - 1].date);
+  
+  let dataIndex = 0;
+  
+  while (currentDate <= endDate) {
+    const currentDateStr = currentDate.toISOString().split('T')[0];
+    
+    // Check if we have data for this date
+    if (dataIndex < sortedData.length && sortedData[dataIndex].date === currentDateStr) {
+      result.push(sortedData[dataIndex]);
+      dataIndex++;
+    } else {
+      // Fill missing date with zero values
+      result.push({
+        date: currentDateStr,
+        IDE_Chat: 0,
+        Dotcom_Chat: 0,
+        Pull_Request: 0,
+        Code_Completion: 0
+      });
+    }
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return result;
 }

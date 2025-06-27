@@ -11,7 +11,7 @@ const token = process.env.GITHUB_TOKEN;
 const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/';
 
 if (!url || !token) {
-  console.error('Please set GITHUB_BILLING_URL and GITHUB_TOKEN in your .env file');
+  console.error('Please set GITHUB_METRICS_URL and GITHUB_TOKEN in your .env file');
   process.exit(1);
 }
 
