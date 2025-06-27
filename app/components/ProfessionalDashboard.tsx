@@ -67,6 +67,7 @@ export default function ProfessionalDashboard() {
   const [timePeriodFilter, setTimePeriodFilter] = useState('all-time');
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [excludeWeekends, setExcludeWeekends] = useState(false);
   const [billingTableLimit, setBillingTableLimit] = useState(25);
   const [billingSortConfig, setBillingSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' | null }>({
     key: '',
@@ -90,6 +91,13 @@ export default function ProfessionalDashboard() {
       fetchData(activeTab);
     }
   }, [timePeriodFilter]);
+
+  // Add useEffect to re-fetch data when exclude weekends changes
+  useEffect(() => {
+    if (activeTab) {
+      fetchData(activeTab);
+    }
+  }, [excludeWeekends]);
 
   // Add useEffect to re-fetch data when custom dates change
   useEffect(() => {
@@ -241,46 +249,62 @@ export default function ProfessionalDashboard() {
   };
 
   const filterDataByTimePeriod = (data: any[], timePeriod: string): any[] => {
-    if (!data || data.length === 0 || timePeriod === 'all-time') return data;
+    if (!data || data.length === 0) return data;
     
-    // Handle custom date range
-    if (timePeriod === 'custom') {
-      if (!customStartDate || !customEndDate) return data;
-      
-      return data.filter(item => {
-        const itemDate = new Date(item.date);
-        // Create end date with time set to end of day to include the full end date
-        const endDateInclusive = new Date(customEndDate);
-        endDateInclusive.setHours(23, 59, 59, 999);
+    let filteredData = data;
+    
+    // First apply time period filter
+    if (timePeriod !== 'all-time') {
+      // Handle custom date range
+      if (timePeriod === 'custom') {
+        if (!customStartDate || !customEndDate) return data;
         
-        return itemDate >= customStartDate && itemDate <= endDateInclusive;
+        filteredData = data.filter(item => {
+          const itemDate = new Date(item.date);
+          // Create end date with time set to end of day to include the full end date
+          const endDateInclusive = new Date(customEndDate);
+          endDateInclusive.setHours(23, 59, 59, 999);
+          
+          return itemDate >= customStartDate && itemDate <= endDateInclusive;
+        });
+      } else {
+        // Use the current date (today) as the reference point for filtering
+        // This ensures that "last week" means the past 7 days from today, 
+        // and "last month" means the past 30 days from today
+        const today = new Date();
+        today.setHours(23, 59, 59, 999); // Set to end of today to include today's data
+        
+        let cutoffDate: Date;
+        
+        if (timePeriod === 'last-month') {
+          cutoffDate = new Date(today);
+          cutoffDate.setDate(cutoffDate.getDate() - 30); // 30 days ago from today
+          cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
+        } else if (timePeriod === 'last-week') {
+          cutoffDate = new Date(today);
+          cutoffDate.setDate(cutoffDate.getDate() - 7); // 7 days ago from today
+          cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
+        } else {
+          return data; // fallback to all data
+        }
+        
+        filteredData = data.filter(item => {
+          const itemDate = new Date(item.date);
+          return itemDate >= cutoffDate && itemDate <= today;
+        });
+      }
+    }
+    
+    // Then apply weekend exclusion filter if enabled
+    if (excludeWeekends) {
+      filteredData = filteredData.filter(item => {
+        const itemDate = new Date(item.date);
+        const dayOfWeek = itemDate.getDay(); // 0 = Sunday, 6 = Saturday
+        return dayOfWeek !== 0 && dayOfWeek !== 6; // Exclude Saturday (6) and Sunday (0)
       });
     }
     
-    // Use the current date (today) as the reference point for filtering
-    // This ensures that "last week" means the past 7 days from today, 
-    // and "last month" means the past 30 days from today
-    const today = new Date();
-    today.setHours(23, 59, 59, 999); // Set to end of today to include today's data
-    
-    let cutoffDate: Date;
-    
-    if (timePeriod === 'last-month') {
-      cutoffDate = new Date(today);
-      cutoffDate.setDate(cutoffDate.getDate() - 30); // 30 days ago from today
-      cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
-    } else if (timePeriod === 'last-week') {
-      cutoffDate = new Date(today);
-      cutoffDate.setDate(cutoffDate.getDate() - 7); // 7 days ago from today
-      cutoffDate.setHours(0, 0, 0, 0); // Set to start of that day
-    } else {
-      return data; // fallback to all data
-    }
-    
-    return data.filter(item => {
-      const itemDate = new Date(item.date);
-      return itemDate >= cutoffDate && itemDate <= today;
-    });
+    return filteredData;
   };
 
   const createChartData = (chartData: any[], xKey: string, yKeys: string[], type: 'line' | 'bar' = 'line') => {
@@ -320,12 +344,21 @@ export default function ProfessionalDashboard() {
 
     return {
       labels: filteredData.map(item => {
-        // Convert date string to Date object for time scale
         const dateValue = item[xKey];
-        if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-          return new Date(dateValue);
+        if (excludeWeekends) {
+          // For weekends excluded, use formatted date strings to avoid gaps
+          if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+            const date = new Date(dateValue);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }
+          return dateValue;
+        } else {
+          // For all days, use Date objects for time scale
+          if (typeof dateValue === 'string' && dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+            return new Date(dateValue);
+          }
+          return dateValue;
         }
-        return dateValue;
       }),
       datasets,
     };
@@ -580,110 +613,141 @@ export default function ProfessionalDashboard() {
     }
   };
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        labels: {
-          color: '#1e293b',
-          font: {
+  // Dynamic chart options that change based on weekend exclusion
+  const getChartOptions = () => {
+    const baseOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#1e293b',
+            font: {
+              family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              size: 14,
+              weight: 'normal' as const
+            },
+            padding: 20,
+            usePointStyle: true,
+            pointStyle: 'circle',
+          },
+          position: 'top' as const,
+          align: 'center' as const
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          titleColor: '#1e293b',
+          bodyColor: '#475569',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: {
             family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             size: 14,
-            weight: 'normal' as const
+            weight: 'bold' as const
           },
-          padding: 20,
-          usePointStyle: true,
-          pointStyle: 'circle',
-        },
-        position: 'top' as const,
-        align: 'center' as const
-      },
-      tooltip: {
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        titleColor: '#1e293b',
-        bodyColor: '#475569',
-        borderColor: '#e2e8f0',
-        borderWidth: 1,
-        padding: 12,
-        cornerRadius: 8,
-        titleFont: {
-          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          size: 14,
-          weight: 'bold' as const
-        },
-        bodyFont: {
-          family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          size: 13,
-          weight: 'normal' as const
-        },
-        boxPadding: 4,
-      }
-    },
-    scales: {
-      x: {
-        type: 'time' as const,
-        time: {
-          unit: 'day' as const,
-          displayFormats: {
-            day: 'MMM dd'
-          },
-          tooltipFormat: 'MMM dd, yyyy'
-        },
-        grid: { 
-          color: '#f1f5f9',
-          borderColor: '#e2e8f0',
-        },
-        ticks: { 
-          color: '#64748b',
-          font: { 
+          bodyFont: {
             family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            size: 11,
+            size: 13,
             weight: 'normal' as const
           },
-          maxRotation: 45,
-          minRotation: 0,
-          padding: 8,
-          autoSkip: true,
-          maxTicksLimit: 15,
-        },
-        border: {
-          color: '#e2e8f0',
+          boxPadding: 4,
         }
       },
-      y: {
-        grid: { 
-          color: '#f1f5f9',
-          borderColor: '#e2e8f0',
-        },
-        ticks: { 
-          color: '#64748b',
-          font: { 
-            family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            size: 12,
-            weight: 'normal' as const
+      scales: {
+        x: excludeWeekends ? {
+          // Use category scale for weekends excluded to avoid gaps
+          type: 'category' as const,
+          grid: { 
+            color: '#f1f5f9',
+            borderColor: '#e2e8f0',
           },
-          padding: 8,
+          ticks: { 
+            color: '#64748b',
+            font: { 
+              family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              size: 11,
+              weight: 'normal' as const
+            },
+            maxRotation: 45,
+            minRotation: 0,
+            padding: 8,
+            autoSkip: true,
+            maxTicksLimit: 15,
+          },
+          border: {
+            color: '#e2e8f0',
+          }
+        } : {
+          // Use time scale for all days to show proper date progression
+          type: 'time' as const,
+          time: {
+            unit: 'day' as const,
+            displayFormats: {
+              day: 'MMM dd'
+            },
+            tooltipFormat: 'MMM dd, yyyy'
+          },
+          grid: { 
+            color: '#f1f5f9',
+            borderColor: '#e2e8f0',
+          },
+          ticks: { 
+            color: '#64748b',
+            font: { 
+              family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              size: 11,
+              weight: 'normal' as const
+            },
+            maxRotation: 45,
+            minRotation: 0,
+            padding: 8,
+            autoSkip: true,
+            maxTicksLimit: 15,
+          },
+          border: {
+            color: '#e2e8f0',
+          }
         },
-        border: {
-          color: '#e2e8f0',
-        },
-        beginAtZero: true
-      }
-    },
-    interaction: {
-      intersect: false,
-      mode: 'index' as const,
-    },
-    elements: {
-      line: {
-        tension: 0.2,
+        y: {
+          grid: { 
+            color: '#f1f5f9',
+            borderColor: '#e2e8f0',
+          },
+          ticks: { 
+            color: '#64748b',
+            font: { 
+              family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              size: 12,
+              weight: 'normal' as const
+            },
+            padding: 8,
+          },
+          border: {
+            color: '#e2e8f0',
+          },
+          beginAtZero: true
+        }
       },
-      point: {
-        hoverRadius: 8,
+      interaction: {
+        intersect: false,
+        mode: 'index' as const,
+      },
+      elements: {
+        line: {
+          tension: 0.2,
+        },
+        point: {
+          hoverRadius: 8,
+        }
       }
-    }
+    };
+
+    return baseOptions;
   };
+
+  const chartOptions = getChartOptions();
 
   const renderMetrics = (tabData: any, tab: string) => {
     if (!tabData) return null;
@@ -1220,9 +1284,9 @@ export default function ProfessionalDashboard() {
                           key={getChartKey()} 
                           data={chartData} 
                           options={{
-                            ...chartOptions,
+                            ...getChartOptions(),
                             plugins: {
-                              ...chartOptions.plugins,
+                              ...getChartOptions().plugins,
                               title: {
                                 display: true,
                                 text: 'Average Chat Prompts per User by Editor Over Time',
@@ -1237,16 +1301,16 @@ export default function ProfessionalDashboard() {
                               }
                             },
                             scales: {
-                              ...chartOptions.scales,
+                              ...getChartOptions().scales,
                               y: {
-                                ...chartOptions.scales?.y,
+                                ...getChartOptions().scales?.y,
                                 title: {
                                   display: true,
                                   text: 'Average Prompts per User'
                                 }
                               },
                               x: {
-                                ...chartOptions.scales?.x,
+                                ...getChartOptions().scales?.x,
                                 title: {
                                   display: true,
                                   text: 'Date'
@@ -1407,7 +1471,16 @@ export default function ProfessionalDashboard() {
                       
                       // Create final chart data
                       const finalChartData = {
-                        labels: chartData.map((item: any) => item.date),
+                        labels: chartData.map((item: any) => {
+                          if (excludeWeekends) {
+                            // For weekends excluded, use formatted date strings to avoid gaps
+                            const date = new Date(item.date);
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          } else {
+                            // For all days, use original date for time scale
+                            return item.date;
+                          }
+                        }),
                         datasets: allDatasets,
                       };
                       
@@ -1416,9 +1489,26 @@ export default function ProfessionalDashboard() {
                           key={getChartKey()} 
                           data={finalChartData} 
                           options={{
-                            ...chartOptions,
+                            ...getChartOptions(),
                             scales: {
-                              x: {
+                              x: excludeWeekends ? {
+                                type: 'category',
+                                title: {
+                                  display: true,
+                                  text: 'Date',
+                                  color: 'var(--primary-color)'
+                                },
+                                grid: {
+                                  display: true,
+                                  color: 'rgba(0, 0, 0, 0.1)'
+                                },
+                                ticks: {
+                                  autoSkip: false,
+                                  maxTicksLimit: 15,
+                                  color: 'var(--primary-color)',
+                                  maxRotation: 45
+                                }
+                              } : {
                                 type: 'time',
                                 time: {
                                   unit: 'day',
@@ -1462,7 +1552,7 @@ export default function ProfessionalDashboard() {
                               }
                             },
                             plugins: {
-                              ...chartOptions.plugins,
+                              ...getChartOptions().plugins,
                               legend: {
                                 display: true,
                                 position: 'top',
@@ -1643,7 +1733,16 @@ export default function ProfessionalDashboard() {
                       });
                       
                       const finalChartData = {
-                        labels: chartData.map((item: any) => item.date),
+                        labels: chartData.map((item: any) => {
+                          if (excludeWeekends) {
+                            // For weekends excluded, use formatted date strings to avoid gaps
+                            const date = new Date(item.date);
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          } else {
+                            // For all days, use original date for time scale
+                            return item.date;
+                          }
+                        }),
                         datasets: allDatasets,
                       };
                       
@@ -1652,9 +1751,9 @@ export default function ProfessionalDashboard() {
                           key={getChartKey()} 
                           data={finalChartData} 
                           options={{
-                            ...chartOptions,
+                            ...getChartOptions(),
                             plugins: {
-                              ...chartOptions.plugins,
+                              ...getChartOptions().plugins,
                               title: {
                                 display: true,
                                 text: selectedEditors.length === 0 ? 
@@ -1772,7 +1871,16 @@ export default function ProfessionalDashboard() {
                       }));
                       
                       const finalChartData = {
-                        labels: chartData.map((item: any) => item.date),
+                        labels: chartData.map((item: any) => {
+                          if (excludeWeekends) {
+                            // For weekends excluded, use formatted date strings to avoid gaps
+                            const date = new Date(item.date);
+                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          } else {
+                            // For all days, use original date for time scale
+                            return item.date;
+                          }
+                        }),
                         datasets
                       };
                       
@@ -1781,9 +1889,9 @@ export default function ProfessionalDashboard() {
                           key={getChartKey()} 
                           data={finalChartData}
                           options={{
-                            ...chartOptions,
+                            ...getChartOptions(),
                             plugins: {
-                              ...chartOptions.plugins,
+                              ...getChartOptions().plugins,
                               title: {
                                 display: true,
                                 text: selectedEditors.length === 0 ? 
@@ -2121,7 +2229,7 @@ export default function ProfessionalDashboard() {
 
   // Helper function to generate chart key for proper re-rendering
   const getChartKey = () => {
-    const baseKey = `chart-${activeTab}-${filters[activeTab]?.join('-')}-${timePeriodFilter}`;
+    const baseKey = `chart-${activeTab}-${filters[activeTab]?.join('-')}-${timePeriodFilter}-${excludeWeekends ? 'no-weekends' : 'all-days'}`;
     if (timePeriodFilter === 'custom' && customStartDate && customEndDate) {
       return `${baseKey}-${customStartDate.toDateString()}-${customEndDate.toDateString()}`;
     }
@@ -2130,7 +2238,7 @@ export default function ProfessionalDashboard() {
 
   // Helper function to generate chart key for pie charts (excludes filters)
   const getPieChartKey = () => {
-    const baseKey = `pie-chart-${activeTab}-${timePeriodFilter}`;
+    const baseKey = `pie-chart-${activeTab}-${timePeriodFilter}-${excludeWeekends ? 'no-weekends' : 'all-days'}`;
     if (timePeriodFilter === 'custom' && customStartDate && customEndDate) {
       return `${baseKey}-${customStartDate.toDateString()}-${customEndDate.toDateString()}`;
     }
@@ -2208,6 +2316,33 @@ export default function ProfessionalDashboard() {
             </div>
           </>
         )}
+
+        <button
+          className={styles.weekendToggleButton}
+          onClick={() => setExcludeWeekends(!excludeWeekends)}
+          style={{
+            height: '36px',
+            padding: '0 12px',
+            fontSize: '14px',
+            backgroundColor: excludeWeekends ? '#3b82f6' : '#f1f5f9',
+            color: excludeWeekends ? 'white' : '#475569',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontWeight: '500',
+            whiteSpace: 'nowrap'
+          }}
+          title={excludeWeekends ? 'Include weekends in chart data' : 'Exclude weekends from chart data'}
+        >
+          <span style={{ fontSize: '12px' }}>
+            {excludeWeekends ? '📊' : '📅'}
+          </span>
+          {excludeWeekends ? 'Weekdays Only' : 'All Days'}
+        </button>
       </div>
     );
   };
