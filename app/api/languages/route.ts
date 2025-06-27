@@ -17,9 +17,54 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No data found' });
     }
 
+    // Helper function to normalize language names
+    const normalizeLanguageName = (language: string): string => {
+      const normalizedName = language.toLowerCase().trim();
+      
+      // Normalize common language names (case-insensitive with common variants)
+      if (normalizedName === 'javascript') return 'JavaScript';
+      else if (normalizedName === 'typescript') return 'TypeScript';
+      else if (normalizedName === 'python') return 'Python';
+      else if (normalizedName === 'java') return 'Java';
+      else if (normalizedName === 'csharp' || normalizedName === 'c#') return 'C#';
+      else if (normalizedName === 'html') return 'HTML';
+      else if (normalizedName === 'css') return 'CSS';
+      else if (normalizedName === 'json') return 'JSON';
+      else if (normalizedName === 'sql') return 'SQL';
+      else if (normalizedName === 'go') return 'Go';
+      else if (normalizedName === 'rust') return 'Rust';
+      else if (normalizedName === 'php') return 'PHP';
+      else if (normalizedName === 'ruby') return 'Ruby';
+      else if (normalizedName === 'dart') return 'Dart';
+      else if (normalizedName === 'kotlin') return 'Kotlin';
+      else if (normalizedName === 'swift') return 'Swift';
+      else if (normalizedName === 'yaml' || normalizedName === 'yml') return 'YAML';
+      else if (normalizedName === 'xml') return 'XML';
+      else if (normalizedName === 'markdown' || normalizedName === 'md') return 'Markdown';
+      // Additional React/JSX variants
+      else if (normalizedName === 'javascriptreact' || normalizedName === 'jsx') return 'JavaScript React';
+      else if (normalizedName === 'typescriptreact' || normalizedName === 'tsx') return 'TypeScript React';
+      // Environment and config files
+      else if (normalizedName === 'dotenv' || normalizedName === '.env') return 'Environment Files';
+      else if (normalizedName === 'dockerfile' || normalizedName === 'docker') return 'Dockerfile';
+      // Other common language variants
+      else if (normalizedName === 'cplusplus' || normalizedName === 'c++' || normalizedName === 'cpp') return 'C++';
+      else if (normalizedName === 'c' && language.length === 1) return 'C';
+      else if (normalizedName === 'shell' || normalizedName === 'bash' || normalizedName === 'sh') return 'Shell';
+      else if (normalizedName === 'powershell' || normalizedName === 'ps1') return 'PowerShell';
+      else if (normalizedName === 'r') return 'R';
+      else if (normalizedName === 'vue' || normalizedName === 'vuejs') return 'Vue.js';
+      else if (normalizedName === 'scss' || normalizedName === 'sass') return 'Sass/SCSS';
+      else if (normalizedName === 'less') return 'Less';
+      else {
+        // For any unmatched language, use proper title case for the first letter
+        return language.charAt(0).toUpperCase() + language.slice(1);
+      }
+    };
+
     // Process language data
-    const languagesData: any[] = [];
     const allLanguages = new Set<string>();
+    const languageAggregation: { [key: string]: any } = {};
 
     data.forEach(item => {
       const date = new Date(item.date).toISOString().split('T')[0];
@@ -28,10 +73,11 @@ export async function GET(request: NextRequest) {
       if (item.copilot_ide_code_completions?.languages) {
         item.copilot_ide_code_completions.languages.forEach((langItem: any) => {
           if (langItem.name) {
-            allLanguages.add(langItem.name);
+            const normalizedLanguageName = normalizeLanguageName(langItem.name);
+            allLanguages.add(normalizedLanguageName);
             
-            // Filter by selected languages if specified
-            if (selectedLanguages.length === 0 || selectedLanguages.includes(langItem.name)) {
+            // Filter by selected languages if specified (using normalized names)
+            if (selectedLanguages.length === 0 || selectedLanguages.includes(normalizedLanguageName)) {
               // Calculate total suggestions and acceptances across all editors for this language
               let totalSuggestions = 0;
               let totalAcceptances = 0;
@@ -52,18 +98,31 @@ export async function GET(request: NextRequest) {
                 });
               }
 
-              languagesData.push({
-                date,
-                language: langItem.name,
-                total_engaged_users: langItem.total_engaged_users || 0,
-                total_code_acceptances: totalAcceptances,
-                total_code_suggestions: totalSuggestions
-              });
+              // Create aggregation key for this language and date
+              const aggregationKey = `${date}-${normalizedLanguageName}`;
+              
+              if (!languageAggregation[aggregationKey]) {
+                languageAggregation[aggregationKey] = {
+                  date,
+                  language: normalizedLanguageName,
+                  total_engaged_users: 0,
+                  total_code_acceptances: 0,
+                  total_code_suggestions: 0
+                };
+              }
+              
+              // Aggregate the data for normalized language names
+              languageAggregation[aggregationKey].total_engaged_users += langItem.total_engaged_users || 0;
+              languageAggregation[aggregationKey].total_code_acceptances += totalAcceptances;
+              languageAggregation[aggregationKey].total_code_suggestions += totalSuggestions;
             }
           }
         });
       }
     });
+
+    // Convert aggregated data to array
+    const languagesData = Object.values(languageAggregation);
 
     // Create weekly aggregation
     const weeklyLanguages: { [key: string]: any } = {};

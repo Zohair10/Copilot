@@ -68,6 +68,8 @@ export default function ProfessionalDashboard() {
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
   const [excludeWeekends, setExcludeWeekends] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isStickyHeaderActive, setIsStickyHeaderActive] = useState(false);
   const [billingTableLimit, setBillingTableLimit] = useState(25);
   const [billingSortConfig, setBillingSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' | null }>({
     key: '',
@@ -85,26 +87,9 @@ export default function ProfessionalDashboard() {
     fetchData(activeTab);
   }, [activeTab]);
 
-  // Add useEffect to re-fetch data when time period filter changes
-  useEffect(() => {
-    if (activeTab) {
-      fetchData(activeTab);
-    }
-  }, [timePeriodFilter]);
-
-  // Add useEffect to re-fetch data when exclude weekends changes
-  useEffect(() => {
-    if (activeTab) {
-      fetchData(activeTab);
-    }
-  }, [excludeWeekends]);
-
-  // Add useEffect to re-fetch data when custom dates change
-  useEffect(() => {
-    if (activeTab && timePeriodFilter === 'custom' && customStartDate && customEndDate) {
-      fetchData(activeTab);
-    }
-  }, [customStartDate, customEndDate]);
+  // Note: Time period filtering and weekend exclusion are handled client-side
+  // No need to re-fetch data from API when these filters change
+  // The filterDataByTimePeriod function handles all time-based filtering
 
   // Remove automatic filter refresh - only refresh when Apply is clicked
 
@@ -118,6 +103,57 @@ export default function ProfessionalDashboard() {
       });
     };
   }, [activeTab]); // Run cleanup when tab changes
+
+  // Enhanced scroll listener for sticky header behavior with smooth transitions
+  useEffect(() => {
+    let scrollTimeout: NodeJS.Timeout;
+    
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 80;
+      const tabsElement = document.querySelector(`.${styles.professionalTabs}`);
+      
+      if (tabsElement) {
+        // Clear any existing timeout
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        
+        if (scrolled !== isStickyHeaderActive) {
+          setIsStickyHeaderActive(scrolled);
+          
+          if (scrolled) {
+            tabsElement.classList.add(styles.stickyScrolled || 'sticky-scrolled');
+          } else {
+            // Add a small delay before removing the sticky class for smoother transition
+            scrollTimeout = setTimeout(() => {
+              tabsElement.classList.remove(styles.stickyScrolled || 'sticky-scrolled');
+            }, 100);
+          }
+        }
+      }
+    };
+
+    // Throttle scroll events for better performance
+    let ticking = false;
+    const throttledHandleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', throttledHandleScroll, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', throttledHandleScroll);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
+  }, [isStickyHeaderActive, styles.professionalTabs, styles.stickyScrolled]);
 
   const fetchData = async (tab: string) => {
     return fetchDataWithFilters(tab, filters[tab] || []);
@@ -221,6 +257,8 @@ export default function ProfessionalDashboard() {
 
   const applyFilters = async () => {
     try {
+      setIsTransitioning(true);
+      
       // Apply pending filters to active filters
       setFilters(prev => ({ ...prev, [activeTab]: pendingFilters[activeTab] || [] }));
       
@@ -228,13 +266,19 @@ export default function ProfessionalDashboard() {
       if (activeTab) {
         await fetchData(activeTab);
       }
+      
+      // Small delay for smooth transition
+      setTimeout(() => setIsTransitioning(false), 300);
     } catch (err) {
       console.error('Error applying filters:', err);
+      setIsTransitioning(false);
     }
   };
 
   const clearFilters = async () => {
     try {
+      setIsTransitioning(true);
+      
       // Clear both pending and active filters
       setPendingFilters(prev => ({ ...prev, [activeTab]: [] }));
       setFilters(prev => ({ ...prev, [activeTab]: [] }));
@@ -243,8 +287,12 @@ export default function ProfessionalDashboard() {
       if (activeTab) {
         await fetchDataWithFilters(activeTab, []);
       }
+      
+      // Small delay for smooth transition
+      setTimeout(() => setIsTransitioning(false), 300);
     } catch (err) {
       console.error('Error clearing filters:', err);
+      setIsTransitioning(false);
     }
   };
 
@@ -371,9 +419,9 @@ export default function ProfessionalDashboard() {
     const normalizedData: { [key: string]: number } = {};
     
     Object.entries(pieData).forEach(([language, value]) => {
-      const normalizedName = language.toLowerCase();
+      const normalizedName = language.toLowerCase().trim();
       
-      // Normalize some common language names
+      // Normalize language names (case-insensitive with common variants)
       let finalName = language;
       if (normalizedName === 'javascript') finalName = 'JavaScript';
       else if (normalizedName === 'typescript') finalName = 'TypeScript';
@@ -395,6 +443,26 @@ export default function ProfessionalDashboard() {
       else if (normalizedName === 'yaml' || normalizedName === 'yml') finalName = 'YAML';
       else if (normalizedName === 'xml') finalName = 'XML';
       else if (normalizedName === 'markdown' || normalizedName === 'md') finalName = 'Markdown';
+      // Additional React/JSX variants
+      else if (normalizedName === 'javascriptreact' || normalizedName === 'jsx') finalName = 'JavaScript React';
+      else if (normalizedName === 'typescriptreact' || normalizedName === 'tsx') finalName = 'TypeScript React';
+      // Environment and config files
+      else if (normalizedName === 'dotenv' || normalizedName === '.env') finalName = 'Environment Files';
+      else if (normalizedName === 'dockerfile' || normalizedName === 'docker') finalName = 'Dockerfile';
+      // Other common language variants
+      else if (normalizedName === 'cplusplus' || normalizedName === 'c++' || normalizedName === 'cpp') finalName = 'C++';
+      else if (normalizedName === 'c' && language.length === 1) finalName = 'C';
+      else if (normalizedName === 'shell' || normalizedName === 'bash' || normalizedName === 'sh') finalName = 'Shell';
+      else if (normalizedName === 'powershell' || normalizedName === 'ps1') finalName = 'PowerShell';
+      else if (normalizedName === 'r') finalName = 'R';
+      else if (normalizedName === 'vue' || normalizedName === 'vuejs') finalName = 'Vue.js';
+      else if (normalizedName === 'scss' || normalizedName === 'sass') finalName = 'Sass/SCSS';
+      else if (normalizedName === 'less') finalName = 'Less';
+      else {
+        // For any unmatched language, use proper title case for the first letter
+        // This handles edge cases while preserving the original casing intent
+        finalName = language.charAt(0).toUpperCase() + language.slice(1);
+      }
       
       if (!normalizedData[finalName]) {
         normalizedData[finalName] = 0;
@@ -2356,7 +2424,7 @@ export default function ProfessionalDashboard() {
         </p>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', width: '95%' }}>
+      <div className={styles.professionalTabsWrapper}>
         <div className={styles.professionalTabs}>
           {tabs.map(tab => (
             <button
@@ -2373,8 +2441,15 @@ export default function ProfessionalDashboard() {
         </div>
       </div>
 
-      <div>
-        {renderTabContent(activeTab)}
+      <div style={{ position: 'relative' }}>
+        {isTransitioning && (
+          <div className={styles.professionalTransitionOverlay}>
+            <div className={styles.professionalSpinner}></div>
+          </div>
+        )}
+        <div className={isTransitioning ? styles.transitioning : ''}>
+          {renderTabContent(activeTab)}
+        </div>
       </div>
     </div>
   );

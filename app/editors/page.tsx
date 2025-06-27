@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Line, Pie } from 'react-chartjs-2';
 import Link from 'next/link';
-import styles from '../components/Dashboard.module.css';
+import styles from '../styles/professional.module.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 

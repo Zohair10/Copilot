@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import styles from '../components/Dashboard.module.css';
+import styles from '../styles/professional.module.css';
 
 export default function TablesPage() {
   const [activeTable, setActiveTable] = useState<string>('organization');

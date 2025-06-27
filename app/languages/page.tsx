@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Line, Pie } from 'react-chartjs-2';
 import Link from 'next/link';
-import styles from '../components/Dashboard.module.css';
+import styles from '../styles/professional.module.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
@@ -95,8 +95,62 @@ export default function LanguagesPage() {
   const createPieChart = (pieData: any) => {
     if (!pieData || typeof pieData !== 'object') return null;
 
-    const labels = Object.keys(pieData);
-    const values = Object.values(pieData) as number[];
+    // Apply the same normalization logic for consistency
+    const normalizedData: { [key: string]: number } = {};
+    
+    Object.entries(pieData).forEach(([language, value]) => {
+      const normalizedName = language.toLowerCase().trim();
+      
+      // Normalize language names (case-insensitive with common variants)
+      let finalName = language;
+      if (normalizedName === 'javascript') finalName = 'JavaScript';
+      else if (normalizedName === 'typescript') finalName = 'TypeScript';
+      else if (normalizedName === 'python') finalName = 'Python';
+      else if (normalizedName === 'java') finalName = 'Java';
+      else if (normalizedName === 'others') finalName = 'Others';
+      else if (normalizedName === 'csharp' || normalizedName === 'c#') finalName = 'C#';
+      else if (normalizedName === 'html') finalName = 'HTML';
+      else if (normalizedName === 'css') finalName = 'CSS';
+      else if (normalizedName === 'json') finalName = 'JSON';
+      else if (normalizedName === 'sql') finalName = 'SQL';
+      else if (normalizedName === 'go') finalName = 'Go';
+      else if (normalizedName === 'rust') finalName = 'Rust';
+      else if (normalizedName === 'php') finalName = 'PHP';
+      else if (normalizedName === 'ruby') finalName = 'Ruby';
+      else if (normalizedName === 'dart') finalName = 'Dart';
+      else if (normalizedName === 'kotlin') finalName = 'Kotlin';
+      else if (normalizedName === 'swift') finalName = 'Swift';
+      else if (normalizedName === 'yaml' || normalizedName === 'yml') finalName = 'YAML';
+      else if (normalizedName === 'xml') finalName = 'XML';
+      else if (normalizedName === 'markdown' || normalizedName === 'md') finalName = 'Markdown';
+      // Additional React/JSX variants
+      else if (normalizedName === 'javascriptreact' || normalizedName === 'jsx') finalName = 'JavaScript React';
+      else if (normalizedName === 'typescriptreact' || normalizedName === 'tsx') finalName = 'TypeScript React';
+      // Environment and config files
+      else if (normalizedName === 'dotenv' || normalizedName === '.env') finalName = 'Environment Files';
+      else if (normalizedName === 'dockerfile' || normalizedName === 'docker') finalName = 'Dockerfile';
+      // Other common language variants
+      else if (normalizedName === 'cplusplus' || normalizedName === 'c++' || normalizedName === 'cpp') finalName = 'C++';
+      else if (normalizedName === 'c' && language.length === 1) finalName = 'C';
+      else if (normalizedName === 'shell' || normalizedName === 'bash' || normalizedName === 'sh') finalName = 'Shell';
+      else if (normalizedName === 'powershell' || normalizedName === 'ps1') finalName = 'PowerShell';
+      else if (normalizedName === 'r') finalName = 'R';
+      else if (normalizedName === 'vue' || normalizedName === 'vuejs') finalName = 'Vue.js';
+      else if (normalizedName === 'scss' || normalizedName === 'sass') finalName = 'Sass/SCSS';
+      else if (normalizedName === 'less') finalName = 'Less';
+      else {
+        // For any unmatched language, use proper title case for the first letter
+        finalName = language.charAt(0).toUpperCase() + language.slice(1);
+      }
+      
+      if (!normalizedData[finalName]) {
+        normalizedData[finalName] = 0;
+      }
+      normalizedData[finalName] += (value as number);
+    });
+
+    const labels = Object.keys(normalizedData);
+    const values = Object.values(normalizedData) as number[];
 
     return {
       labels,
